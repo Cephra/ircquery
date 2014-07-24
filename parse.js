@@ -28,9 +28,18 @@ var parse = module.exports = {
         var from = parse.sender(res.prefix);
         
         if (from.nick === this._opts.nick) {
-            this.emit("joinin", res.args);
-        } else {
             this.emit("jointo", res.args);
+        } else {
+            this.emit("joinin", from, res.args);
+        }
+    },
+    "PART": function(res) {
+        var from = parse.sender(res.prefix);
+        
+        if (from.nick === this._opts.nick) {
+            this.emit("partfrom", res.args);
+        } else {
+            this.emit("partin", from, res.args);
         }
     },
 };
