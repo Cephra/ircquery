@@ -48,8 +48,8 @@ util.inherits(Client, events.EventEmitter);
 
 // proto functions
 var prot = Client.prototype;
-prot.log = function (data) {
-    this.emit("log", data);
+prot.log = function (text) {
+    this.emit("log", text);
 }
 prot.cmd = function (cmd) {
     this.log("cmd: "+cmd);
