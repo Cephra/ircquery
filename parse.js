@@ -3,36 +3,58 @@ var parse = module.exports = {
         this.cmd("PONG :"+res.args);
     },
     "NOTICE": function (res) {
+        var from = parse.sender(res.prefix);
 
+        this.emit("notice",
+                from,
+                res.params,
+                res.args);
     },
     "PRIVMSG": function (res) {
-        var usr = user(res.prefix);
+        var from = parse.sender(res.prefix);
 
         if (res.params[0] == "#") {
             this.emit("chanmsg", 
-                    usr,
+                    from,
                     res.params,
                     res.args);
         } else { 
             this.emit("privmsg", 
-                    usr,
+                    from,
                     res.args);
         }
     },
+    "JOIN": function(res) {
+        var from = parse.sender(res.prefix);
+        
+        if (from.nick === this._opts.nick) {
+            this.emit("joinin", res.args);
+        } else {
+            this.emit("jointo", res.args);
+        }
+    },
 };
-var user = function (user) {
-    // split up the sender string
-    var nicksplt = user.split("!");
-    var hostsplt = nicksplt[1].split("@");
-
-    // build the usr object and return it
-    return {
-        nick: nicksplt[0],
-        user: hostsplt[0],
-        host: hostsplt[1],
+var sender = function (sender) {
+    User = function (nick, user, host) {
+        this.nick = nick;
+        this.user = user;
+        this.host = host;
     };
+    if (sender.indexOf("!") > -1) {
+        // split up the sender string
+        var nicksplt = sender.split("!");
+        var hostsplt = nicksplt[1].split("@");
+
+        // build the usr object and return it
+        return new User(
+            nicksplt[0],
+            hostsplt[0],
+            hostsplt[1]);
+    } else {
+        return new User(sender);
+    }
 };
-module.exports.user = user;
+module.exports.sender = sender;
 module.exports.res = function (line) {
     var response = {
         line: line,

@@ -39,6 +39,7 @@ var Client = function (opts) {
     
     // parser
     this.on("raw", function (res) {
+        console.log("try parse: "+res.type);
         if (parse[res.type])
             parse[res.type].call(this, res);
     });
@@ -99,6 +100,8 @@ prot.part = function (chan) {
     this.cmd("PART "+chan);
 };
 prot.say = function (target, text) {
-    this.cmd("PRIVMSG "+target+" :"+text);
+    if (typeof text !== "undefined") {
+        this.cmd("PRIVMSG "+target+" :"+text);
+    }
 };
 module.exports = Client;
