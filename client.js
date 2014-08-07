@@ -74,7 +74,8 @@ prot.connect = function () {
     sock.on("connect", function () {
         // logging in
         that.cmd("NICK "+opts.nick);
-        that.cmd("USER "+opts.user+" 0 * :"+opts.desc);
+        that.cmd("USER "+
+                opts.user+" 0 * :"+opts.desc);
 
         // emit login event
         that.emit("login");
@@ -87,8 +88,8 @@ prot.connect = function () {
         var lines = buff.split("\r\n");
         buff = lines.pop();
 
-        lines.forEach(function (elem) {
-            var res = parse.res(elem);
+        lines.forEach(function (line) {
+            var res = parse.res(line);
             that.emit("raw", res);
         });
     });
