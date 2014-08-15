@@ -12,7 +12,7 @@ var Channel = function () {
         }
     }
     
-    // delete nick(s)
+    // delete nick
     this.del = function (arg) {
     }
 };
