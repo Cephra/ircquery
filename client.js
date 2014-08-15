@@ -2,6 +2,7 @@ var util = require("util");
 var net = require("net");
 var events = require("events");
 var parse = require("./parse");
+var channels = require("./channels.js");
 
 // default configuration
 var defaults = {
@@ -39,6 +40,7 @@ var Client = function (opts) {
     // member
     this._opts = opts;
     this._sock = new net.Socket();
+    this.channels = Object.create(channels);
     
     // parser
     this.on("raw", function (res) {
@@ -46,9 +48,6 @@ var Client = function (opts) {
         if (parse[res.type])
             parse[res.type].call(this, res);
     });
-
-    // channels
-    this.channels = require("./channels.js");
 };
 util.inherits(Client, events.EventEmitter);
 

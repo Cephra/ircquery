@@ -2,13 +2,26 @@ var parse = module.exports = {
     "PING": function (res) {
         this.cmd("PONG :"+res.args);
     },
+    "NICK": function (res) {
+        var who = parse.sender(res.prefix);
+        var to = res.args;
+
+        for (var prop in this.channels) {
+            if (typeof this.channels[prop] ===
+                    "function")
+                continue;
+            this.channels[prop]
+                .change(who.nick, to);
+        }
+    },
     "QUIT": function (res) {
         var who = parse.sender(res.prefix);
 
         // remove nick from all channels
         for (var prop in this.channels) {
-            if (typeof this.channels[prop] ==
-                    "function") continue;
+            if (typeof this.channels[prop] ===
+                    "function")
+                continue;
             this.channels[prop].del(who.nick);
         }
     },

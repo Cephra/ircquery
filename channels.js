@@ -1,36 +1,42 @@
-// represents a channel
-var Channel = function () {
-    this.names = {}; 
-
+var Channel = {
+    // flags and nicks
+    flags: "",
+    names: {},
     // add nick(s)
-    this.add = function (arg) {
+    add: function (arg) {
+        var nick = /^([@+]*)(.+)/;
         if (typeof arg === "string") {
-            this.names.push(arg);
+            this.names[arg] = "";
         } else if (Array.isArray(arg)) {
-            this.names = 
-                this.names.concat(arg);
+            for (var x = 0; x < arg.length; x++) {
+                var item = arg[x].match(nick);
+                var modes = item[1]
+                    .replace("@","o")
+                    .replace("+","v");
+                this.names[item[2]] =
+                    modes;
+            }
         }
-        this.names.sort();
-    };
-    
+    },
     // delete nick
-    this.del = function (arg) {
-        var test = /^[@+]+(.*)$/;
-        this.names = 
-            this.names.filter(function (elem) {
-                if (elem.match(test)[1] !== arg)
-                    return elem;
-            });
-    }
-
+    del: function (arg) {
+        delete this.names[arg];
+    },
     // change a nickname
-    this.change = function(arg) {
+    change: function(from, to) {
+        var old = this.names[from];
+        delete this.names[from];
+        this.names[to] = old;
+    },
+    // change mode of a nick
+    mode: function (who, what) {
 
-    }
-};
+    },
+}
 
-module.exports = {
+var Channels = {
     add: function (name) {
-        this[name] = new Channel();
+        this[name] = Object.create(Channel);
     },
 };
+module.exports = Channels;
