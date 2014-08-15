@@ -87,6 +87,8 @@ prot.connect = function () {
         that.cmd("NICK "+opts.nick);
         that.cmd("USER "+
                 opts.user+" 0 * :"+opts.desc);
+        that.cmd("CAP REQ :multi-prefix");
+        that.cmd("PROTOCTL NAMESX");
 
         // emit login event
         that.emit("login");

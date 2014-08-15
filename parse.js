@@ -2,15 +2,67 @@ var parse = module.exports = {
     "PING": function (res) {
         this.cmd("PONG :"+res.args);
     },
-    "JOIN": function(res) {
-        var from = parse.sender(res.prefix);
+    "QUIT": function (res) {
+        var who = parse.sender(res.prefix);
+
+        // remove nick from all channels
+        for (var prop in this.channels) {
+            if (typeof this.channels[prop] ==
+                    "function") continue;
+            this.channels[prop].del(who.nick);
+        }
+    },
+    "PART": function (res) {
+        var who = parse.sender(res.prefix);
         
-        if (from.nick === this._opts.nick) {
-            this.channels.add(res.args);
-            this.log("added channel: "+res.args);
-            this.emit("jointo", res.args);
+        if (who.nick === this._opts.nick) {
+            // remove channel from list
+            delete this.channels[res.params];
+            this.emit("partfrom", 
+                    res.params,
+                    res.args);
         } else {
-            this.emit("joinin", from, res.args);
+            // remove user from channel
+            this.channels[res.params].
+                del(who.nick);
+            this.emit("partin", 
+                    who, 
+                    res.params, 
+                    res.args);
+        }
+    },
+    "KICK": function (res) {
+        var who = parse.sender(res.prefix);
+        var params = res.params.split(" ");
+
+        // either remove channel or nick
+        if (params[1] === this._opts.nick) {
+            delete this.channels[params[0]];
+            this.emit("kickfrom", 
+                    who,
+                    params[0],
+                    res.args);
+        } else {
+            this.channels[params[0]].
+                del(params[1]);
+            this.emit("kickin", 
+                    who,
+                    params[0],
+                    params[1],
+                    res.args);
+        }
+    },
+    "JOIN": function (res) {
+        var who = parse.sender(res.prefix);
+        
+        if (who.nick === this._opts.nick) {
+            this.channels.add(res.params);
+            this.log("added channel: "+res.params);
+            this.emit("jointo", res.params);
+        } else {
+            this.channels[res.params].
+                add(who.nick);
+            this.emit("joinin", who, res.params);
         }
     },
     "353": function (res) {
@@ -24,11 +76,7 @@ var parse = module.exports = {
         this.channels[chan].add(names);
     },
     "366": function (res) {
-        var chan = 
-            res.params.split(" ")[1];
-        this.say("szt", 
-                chan+": "+
-                this.channels[chan].names.length);
+
     },
     "NOTICE": function (res) {
         var from = parse.sender(res.prefix);
@@ -52,14 +100,8 @@ var parse = module.exports = {
                     res.args);
         }
     },
-    "PART": function(res) {
-        var from = parse.sender(res.prefix);
-        
-        if (from.nick === this._opts.nick) {
-            this.emit("partfrom", res.args);
-        } else {
-            this.emit("partin", from, res.args);
-        }
+    "005": function (res) {
+        // TODO parse capabilites.
     },
 };
 var sender = function (sender) {
@@ -100,8 +142,8 @@ module.exports.res = function (line) {
         response.prefix = _line[1];
 
         // arguments?
-        var i;
-        if (i = _line[3].indexOf(":")) {
+        var i = _line[3].indexOf(":");
+        if (i >= 0) {
             var splt = [
                 _line[3].substring(0,i-1),
                 _line[3].substring(i+1),
