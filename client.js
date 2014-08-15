@@ -108,6 +108,7 @@ prot.connect = function () {
 };
 prot.join = function (chan) {
     this.cmd("JOIN "+chan);
+    this.cmd("MODE "+chan);
 };
 prot.part = function (chan) {
     this.cmd("PART "+chan);

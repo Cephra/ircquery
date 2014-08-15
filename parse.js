@@ -6,24 +6,18 @@ var parse = module.exports = {
         var who = parse.sender(res.prefix);
         var to = res.args;
 
-        for (var prop in this.channels) {
-            if (typeof this.channels[prop] ===
-                    "function")
-                continue;
-            this.channels[prop]
-                .change(who.nick, to);
-        }
+        // change nick in all channels
+        this.channels.each(function (chan) {
+            chan.change(who.nick, to);
+        });
     },
     "QUIT": function (res) {
         var who = parse.sender(res.prefix);
 
         // remove nick from all channels
-        for (var prop in this.channels) {
-            if (typeof this.channels[prop] ===
-                    "function")
-                continue;
-            this.channels[prop].del(who.nick);
-        }
+        this.channels.each(function (chan) {
+            chan.del(who.nick);
+        });
     },
     "PART": function (res) {
         var who = parse.sender(res.prefix);
@@ -76,6 +70,21 @@ var parse = module.exports = {
             this.channels[res.params].
                 add(who.nick);
             this.emit("joinin", who, res.params);
+        }
+    },
+    "MODE": function (res) {
+        var who = parse.sender(res.prefix);
+
+        var params = res.params.split(" ");
+        if (params[0][0] === "#") {
+            var chan = this.channels[params[0]];
+            if (params[2]) {
+                chan.mode(params[1],params[2]);
+            } else {
+
+            }
+        } else {
+            this.log("usermode");
         }
     },
     "353": function (res) {
