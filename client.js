@@ -33,23 +33,34 @@ var Client = function (opts) {
                 defaults : opts).desc;
     }
 
+    // debug flag
+    this.dbg = false;
+
     // member
     this._opts = opts;
     this._sock = new net.Socket();
     
     // parser
     this.on("raw", function (res) {
-        console.log("try parse: "+res.type);
+        this.log(res.line);
         if (parse[res.type])
             parse[res.type].call(this, res);
     });
+
+    // channels
+    this.channels = require("./channels.js");
 };
 util.inherits(Client, events.EventEmitter);
 
 // proto functions
 var prot = Client.prototype;
-prot.log = function (text) {
-    this.emit("log", text);
+prot.log = function (arg) {
+    if (this.dbg)
+        console.log(arg);
+}
+prot.dir = function (arg) {
+    if (this.dbg)
+        console.dir(arg);
 }
 prot.cmd = function (cmd) {
     this.log("cmd: "+cmd);

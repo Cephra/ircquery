@@ -2,6 +2,34 @@ var parse = module.exports = {
     "PING": function (res) {
         this.cmd("PONG :"+res.args);
     },
+    "JOIN": function(res) {
+        var from = parse.sender(res.prefix);
+        
+        if (from.nick === this._opts.nick) {
+            this.channels.add(res.args);
+            this.log("added channel: "+res.args);
+            this.emit("jointo", res.args);
+        } else {
+            this.emit("joinin", from, res.args);
+        }
+    },
+    "353": function (res) {
+        var chan = 
+            res.params.split(/\s[=*@]\s/)[1];
+        var names = res.args.split(" ");
+
+        this.log("receiving names in "+chan);
+
+        // pass name array to channel
+        this.channels[chan].add(names);
+    },
+    "366": function (res) {
+        var chan = 
+            res.params.split(" ")[1];
+        this.say("szt", 
+                chan+": "+
+                this.channels[chan].names.length);
+    },
     "NOTICE": function (res) {
         var from = parse.sender(res.prefix);
 
@@ -22,15 +50,6 @@ var parse = module.exports = {
             this.emit("privmsg", 
                     from,
                     res.args);
-        }
-    },
-    "JOIN": function(res) {
-        var from = parse.sender(res.prefix);
-        
-        if (from.nick === this._opts.nick) {
-            this.emit("jointo", res.args);
-        } else {
-            this.emit("joinin", from, res.args);
         }
     },
     "PART": function(res) {
