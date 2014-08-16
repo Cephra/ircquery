@@ -44,7 +44,13 @@ var parse = module.exports = {
 
         // either remove channel or nick
         if (params[1] === this._opts.nick) {
-            delete this.channels[params[0]];
+            var chan = this.channels[params[0]];
+            if (chan.rejoin) {
+                this.join(params[0]);
+                chan.purge();
+            } else {
+                delete this.channels[params[0]];
+            }
             this.emit("kickfrom", 
                     who,
                     params[0],
@@ -79,12 +85,17 @@ var parse = module.exports = {
         if (params[0][0] === "#") {
             var chan = this.channels[params[0]];
             if (params[2]) {
-                chan.mode(params[1],params[2]);
+                var nick = parse.sender(params[2]);
+                if (typeof nick === "string") {
+                    chan.mode(params[1],nick);
+                } else {
+                    // TODO parse list modes
+                }
             } else {
-
+                // TODO parse channel flags
             }
         } else {
-            this.log("usermode");
+            // TODO parse global user flags
         }
     },
     "353": function (res) {
@@ -99,6 +110,16 @@ var parse = module.exports = {
     },
     "366": function (res) {
 
+    },
+    "324": function (res) {
+        var params = res.params.split(" ");
+        var chan = this.channels[params[1]];
+        chan._flags = params[2].replace("+","");
+    },
+    "329": function (res) {
+        var params = res.params.split(" ");
+        var chan = this.channels[params[1]];
+        chan._creation = parseInt(params[2]);
     },
     "NOTICE": function (res) {
         var from = parse.sender(res.prefix);
@@ -123,7 +144,10 @@ var parse = module.exports = {
         }
     },
     "005": function (res) {
-        // TODO parse capabilites.
+        var split = res.params.split(" ");
+        split.forEach(function (v) {
+            this.log(v);
+        }, this);
     },
 };
 var sender = function (sender) {
@@ -143,7 +167,7 @@ var sender = function (sender) {
             hostsplt[0],
             hostsplt[1]);
     } else {
-        return new User(sender);
+        return sender;
     }
 };
 module.exports.sender = sender;
@@ -164,8 +188,9 @@ module.exports.res = function (line) {
         response.prefix = _line[1];
 
         // arguments?
-        var i = _line[3].indexOf(":");
+        var i = _line[3].indexOf(" :");
         if (i >= 0) {
+            i++; // move index to the right
             var splt = [
                 _line[3].substring(0,i-1),
                 _line[3].substring(i+1),

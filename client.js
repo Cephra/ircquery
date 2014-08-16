@@ -62,8 +62,25 @@ prot.dir = function (arg) {
         console.dir(arg);
 }
 prot.cmd = function (cmd) {
-    this.log("cmd: "+cmd);
+    this.log("cmd: "+cmd)
     this._sock.write(cmd+"\r\n");
+    return this;
+};
+prot.join = function (chan) {
+    this
+        .cmd("JOIN "+chan)
+        .cmd("MODE "+chan);
+    return this;
+};
+prot.part = function (chan) {
+    this.cmd("PART "+chan);
+    return this;
+};
+prot.say = function (target, text) {
+    if (typeof text !== "undefined") {
+        this.cmd("PRIVMSG "+target+" :"+text);
+    }
+    return this;
 };
 prot.connect = function () {
     var that = this;
@@ -105,20 +122,10 @@ prot.connect = function () {
             that.emit("raw", res);
         });
     });
-    sock.on("end", function () {
-
+    sock.on("close", function (hadError) {
+        if (!hadError)
+            return;
+        that.connect();
     });
-};
-prot.join = function (chan) {
-    this.cmd("JOIN "+chan);
-    this.cmd("MODE "+chan);
-};
-prot.part = function (chan) {
-    this.cmd("PART "+chan);
-};
-prot.say = function (target, text) {
-    if (typeof text !== "undefined") {
-        this.cmd("PRIVMSG "+target+" :"+text);
-    }
 };
 module.exports = Client;
