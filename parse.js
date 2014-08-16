@@ -17,7 +17,8 @@ var parse = module.exports = {
         // remove nick from all channels
         this.channels.each(function (chan) {
             chan.del(who.nick);
-        });
+        })
+        this.emit("quit", who, res.args);
     },
     "PART": function (res) {
         var who = parse.sender(res.prefix);
@@ -25,16 +26,16 @@ var parse = module.exports = {
         if (who.nick === this._opts.nick) {
             // remove channel from list
             delete this.channels[res.params];
-            this.emit("partfrom", 
+            this.emit("partfrom",
                     res.params,
                     res.args);
         } else {
             // remove user from channel
             this.channels[res.params].
                 del(who.nick);
-            this.emit("partin", 
-                    who, 
+            this.emit("partin",
                     res.params, 
+                    who, 
                     res.args);
         }
     },
@@ -45,22 +46,23 @@ var parse = module.exports = {
         // either remove channel or nick
         if (params[1] === this._opts.nick) {
             var chan = this.channels[params[0]];
+            this.dir(chan);
             if (chan.rejoin) {
-                this.join(params[0]);
+                this.join(params[0], true);
                 chan.purge();
             } else {
                 delete this.channels[params[0]];
             }
-            this.emit("kickfrom", 
-                    who,
+            this.emit("kickfrom",
                     params[0],
+                    who,
                     res.args);
         } else {
             this.channels[params[0]].
                 del(params[1]);
-            this.emit("kickin", 
+            this.emit("kickin",
+                    params[0], 
                     who,
-                    params[0],
                     params[1],
                     res.args);
         }
@@ -71,11 +73,11 @@ var parse = module.exports = {
         if (who.nick === this._opts.nick) {
             this.channels.add(res.params);
             this.log("added channel: "+res.params);
-            this.emit("jointo", res.params);
+            this.emit("jointo"+res.params);
         } else {
             this.channels[res.params].
                 add(who.nick);
-            this.emit("joinin", who, res.params);
+            this.emit("joinin", res.params, who);
         }
     },
     "MODE": function (res) {
@@ -134,8 +136,8 @@ var parse = module.exports = {
 
         if (res.params[0] == "#") {
             this.emit("chanmsg", 
-                    from,
                     res.params,
+                    from,
                     res.args);
         } else { 
             this.emit("privmsg", 

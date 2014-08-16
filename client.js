@@ -66,10 +66,15 @@ prot.cmd = function (cmd) {
     this._sock.write(cmd+"\r\n");
     return this;
 };
-prot.join = function (chan) {
+prot.join = function (chan, rejoin) {
     this
         .cmd("JOIN "+chan)
-        .cmd("MODE "+chan);
+        .cmd("MODE "+chan)
+        .cmd("MODE "+chan+" +q")
+        .cmd("MODE "+chan+" +b")
+        .once("jointo"+chan, function () {
+            this.channels[chan].rejoin = rejoin;
+        });
     return this;
 };
 prot.part = function (chan) {
@@ -121,11 +126,6 @@ prot.connect = function () {
             var res = parse.res(line);
             that.emit("raw", res);
         });
-    });
-    sock.on("close", function (hadError) {
-        if (!hadError)
-            return;
-        that.connect();
     });
 };
 module.exports = Client;
