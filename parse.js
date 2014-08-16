@@ -79,12 +79,14 @@ var parse = module.exports = {
         if (params[0][0] === "#") {
             var chan = this.channels[params[0]];
             if (params[2]) {
-                chan.mode(params[1],params[2]);
+                var nick = 
+                    parse.sender(params[2]).nick;
+                chan.mode(params[1],nick);
             } else {
-
+                // TODO parse channel flags
             }
         } else {
-            this.log("usermode");
+            // TODO parse global user flags
         }
     },
     "353": function (res) {
@@ -99,6 +101,16 @@ var parse = module.exports = {
     },
     "366": function (res) {
 
+    },
+    "324": function (res) {
+        var params = res.params.split(" ");
+        var chan = this.channels[params[1]];
+        chan._flags = params[2].replace("+","");
+    },
+    "329": function (res) {
+        var params = res.params.split(" ");
+        var chan = this.channels[params[1]];
+        chan._creation = parseInt(params[2]);
     },
     "NOTICE": function (res) {
         var from = parse.sender(res.prefix);
