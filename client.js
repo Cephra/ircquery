@@ -105,6 +105,9 @@ prot.connect = function () {
             that.emit("raw", res);
         });
     });
+    sock.on("end", function () {
+
+    });
 };
 prot.join = function (chan) {
     this.cmd("JOIN "+chan);

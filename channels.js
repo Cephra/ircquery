@@ -60,8 +60,7 @@ var Channels = {
         }
     },
     list: function () {
-        return 
-            Object.getOwnPropertyNames(this);
+        return Object.getOwnPropertyNames(this);
     }
 };
 module.exports = Channels;
