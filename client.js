@@ -13,6 +13,22 @@ var defaults = {
     desc: "defdesc",
 };
 
+// buffer worker
+var bufcb = function (that) {
+    var cmdbuf = that._cmdbuf;
+    if (cmdbuf.length >= 1) {
+        var sock = that._sock;
+        var cmd = that._cmdbuf.shift();
+        sock.write(cmd+"\r\n");
+
+        that._delay += 5;
+        setTimeout(bufcb, that._delay, that);
+    } else { 
+        that._sending = false;
+        that._delay = 0;
+    }
+}
+
 // client constructor
 var Client = function (opts) {
     events.EventEmitter.call(this);
@@ -40,6 +56,11 @@ var Client = function (opts) {
     // member
     this._opts = opts;
     this._sock = new net.Socket();
+
+    this._cmdbuf = [];
+    this._delay = 0; // send delay
+
+    // channel list
     this.channels = Object.create(channels);
     
     // parser
@@ -51,22 +72,28 @@ var Client = function (opts) {
 };
 util.inherits(Client, events.EventEmitter);
 
-// proto functions
-var prot = Client.prototype;
-prot.log = function (arg) {
+// shorthand
+var proto = Client.prototype;
+// logging
+proto.log = function (arg) {
     if (this.dbg)
         console.log(arg);
 }
-prot.dir = function (arg) {
+proto.dir = function (arg) {
     if (this.dbg)
         console.dir(arg);
 }
-prot.cmd = function (cmd) {
-    this.log("cmd: "+cmd)
-    this._sock.write(cmd+"\r\n");
+// irc functions
+proto.cmd = function (cmd) {
+    this.log("cmd: "+cmd);
+    this._cmdbuf.push(cmd);
+    if (!this._sending) {
+        this._sending = true;
+        bufcb(this);
+    }
     return this;
 };
-prot.join = function (chan, rejoin) {
+proto.join = function (chan, rejoin) {
     this
         .cmd("JOIN "+chan)
         .cmd("MODE "+chan)
@@ -77,17 +104,21 @@ prot.join = function (chan, rejoin) {
         });
     return this;
 };
-prot.part = function (chan) {
-    this.cmd("PART "+chan);
+proto.part = function (chan, msg) {
+    // send part to server
+    msg = (msg) ? ": "+msg : "";
+    this.cmd("PART "+chan+msg);
+
     return this;
 };
-prot.say = function (target, text) {
+proto.say = function (target, text) {
     if (typeof text !== "undefined") {
         this.cmd("PRIVMSG "+target+" :"+text);
     }
     return this;
 };
-prot.connect = function () {
+// connect
+proto.connect = function () {
     var that = this;
     var sock = that._sock;
     var opts = that._opts;

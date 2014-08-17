@@ -1,8 +1,8 @@
-var Channel = {
-    // flags and nicks and timestamp 
-    _created: 0,
+var Channel = function () {
+    this._nicks = {};
+};
+Channel.prototype = {
     _flags: "",
-    _nicks: {},
     // rejoin on kick
     rejoin: true,
     // add nick(s)
@@ -54,11 +54,27 @@ var Channel = {
     purge: function () {
         this._nicks = {};
     },
+    // return nicklist with prefixes
+    nicklist: function () {
+        var list = [];
+        for (nick in this._nicks) {
+            console.log(nick);
+            var mode = this._nicks[nick][0];
+            if (typeof mode === "string")
+                mode = mode
+                    .replace("v","+")
+                    .replace("o","@");
+            else
+                mode = "";
+            list.push(mode+nick);
+        }
+        return list;
+    },
 }
 
 var Channels = {
     add: function (name) {
-        this[name] = Object.create(Channel);
+        this[name] = new Channel();
     },
     each: function (func) {
         for (var chan in this) {

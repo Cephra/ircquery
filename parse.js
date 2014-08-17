@@ -46,7 +46,6 @@ var parse = module.exports = {
         // either remove channel or nick
         if (params[1] === this._opts.nick) {
             var chan = this.channels[params[0]];
-            this.dir(chan);
             if (chan.rejoin) {
                 this.join(params[0], true);
                 chan.purge();
