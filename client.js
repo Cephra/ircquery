@@ -16,17 +16,15 @@ var defaults = {
 // buffer worker
 var bufcb = function (that) {
     var cmdbuf = that._cmdbuf;
-    if (cmdbuf.length >= 1) {
+    if (cmdbuf.length > 0) {
         var sock = that._sock;
         var cmd = that._cmdbuf.shift();
+        that.log("cmd: "+cmd);
         sock.write(cmd+"\r\n");
 
-        that._delay += 5;
+        that._delay += 10;
         setTimeout(bufcb, that._delay, that);
-    } else { 
-        that._sending = false;
-        that._delay = 0;
-    }
+    } else { that._delay = 0; }
 }
 
 // client constructor
@@ -56,9 +54,11 @@ var Client = function (opts) {
     // member
     this._opts = opts;
     this._sock = new net.Socket();
-
     this._cmdbuf = [];
-    this._delay = 0; // send delay
+    this._delay = 0;
+
+    // dbg TODO: remove
+    this.caps = [];
 
     // channel list
     this.channels = Object.create(channels);
@@ -74,7 +74,7 @@ util.inherits(Client, events.EventEmitter);
 
 // shorthand
 var proto = Client.prototype;
-// logging
+// logging functions
 proto.log = function (arg) {
     if (this.dbg)
         console.log(arg);
@@ -84,11 +84,13 @@ proto.dir = function (arg) {
         console.dir(arg);
 }
 // irc functions
-proto.cmd = function (cmd) {
-    this.log("cmd: "+cmd);
+proto.cmd = function (cmd, nobuf) {
+    if (nobuf) {
+        // no buffering
+        return this;
+    }
     this._cmdbuf.push(cmd);
-    if (!this._sending) {
-        this._sending = true;
+    if (this._delay === 0) {
         bufcb(this);
     }
     return this;
@@ -99,21 +101,22 @@ proto.join = function (chan, rejoin) {
         .cmd("MODE "+chan)
         .cmd("MODE "+chan+" +q")
         .cmd("MODE "+chan+" +b")
-        .once("jointo"+chan, function () {
+        .once("_"+chan, function () {
             this.channels[chan].rejoin = rejoin;
         });
     return this;
 };
 proto.part = function (chan, msg) {
     // send part to server
-    msg = (msg) ? ": "+msg : "";
+    msg = (msg) ? " :"+msg : "";
     this.cmd("PART "+chan+msg);
 
     return this;
 };
-proto.say = function (target, text) {
-    if (typeof text !== "undefined") {
-        this.cmd("PRIVMSG "+target+" :"+text);
+proto.say = function (target, msg) {
+    // TODO line break splitting
+    if (typeof msg !== "undefined") {
+        this.cmd("PRIVMSG "+target+" :"+msg);
     }
     return this;
 };

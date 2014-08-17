@@ -70,9 +70,14 @@ var parse = module.exports = {
         var who = parse.sender(res.prefix);
         
         if (who.nick === this._opts.nick) {
-            this.channels.add(res.params);
+            this.channels.add(res.params, this);
             this.log("added channel: "+res.params);
-            this.emit("jointo"+res.params);
+
+            // internal event
+            this.emit("_"+res.params);
+            this.removeAllListeners("_"+res.params);
+
+            this.emit("jointo",res.params);
         } else {
             this.channels[res.params].
                 add(who.nick);
@@ -145,10 +150,12 @@ var parse = module.exports = {
         }
     },
     "005": function (res) {
-        var split = res.params.split(" ");
-        split.forEach(function (v) {
-            this.log(v);
-        }, this);
+        var split = res.params.split(" ")
+            .slice(1);
+        this.caps = this.caps.concat(split);
+        //split.forEach(function (v) {
+        //    this.caps += v;
+        //}, this);
     },
 };
 var sender = function (sender) {

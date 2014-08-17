@@ -1,8 +1,10 @@
-var Channel = function () {
+var Channel = function (name, that) {
+    this._that = that;
+    this._name = name;
+    
     this._nicks = {};
 };
 Channel.prototype = {
-    _flags: "",
     // rejoin on kick
     rejoin: true,
     // add nick(s)
@@ -58,7 +60,6 @@ Channel.prototype = {
     nicklist: function () {
         var list = [];
         for (nick in this._nicks) {
-            console.log(nick);
             var mode = this._nicks[nick][0];
             if (typeof mode === "string")
                 mode = mode
@@ -68,13 +69,21 @@ Channel.prototype = {
                 mode = "";
             list.push(mode+nick);
         }
-        return list;
+        return list.sort();
+    },
+    say: function (msg) {
+        this._that.say(this._name, msg);
+        return this;
+    },
+    part: function (msg) {
+        this._that.part(this._name, msg);
+        return this;
     },
 }
 
 var Channels = {
-    add: function (name) {
-        this[name] = new Channel();
+    add: function (name, that) {
+        this[name] = new Channel(name, that);
     },
     each: function (func) {
         for (var chan in this) {
