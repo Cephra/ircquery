@@ -55,7 +55,7 @@ var parse = module.exports = {
         
         if (who.nick === this._opts.nick) {
             // remove channel from list
-            delete this.channels[where];
+            this.channels.del(where);
             this.emit("partfrom",
                     where,
                     res.args);
@@ -80,7 +80,7 @@ var parse = module.exports = {
                 chan.purge();
                 this.join(where, true);
             } else {
-                delete this.channels[where];
+                this.channels(where);
             }
             this.emit("kickfrom",
                     where,
@@ -101,12 +101,8 @@ var parse = module.exports = {
         var where = res.params[0];
         
         if (who.nick === this._opts.nick) {
-            this.channels.add(where, this);
             this.log("added channel: "+
                     res.params[0]);
-
-            // internal event
-            this.emit("_"+where);
 
             this.emit("jointo",where);
         } else {
@@ -145,12 +141,15 @@ var parse = module.exports = {
     },
     "324": function (res) {
         var chan = this.channels[res.params[1]];
-        chan._flags = 
-            res.params[2].replace("+","");
+        if (typeof chan !== "undefined")
+            chan._flags = 
+                res.params[2].replace("+","");
     },
     "329": function (res) {
         var chan = this.channels[res.params[1]];
-        chan._creation = parseInt(res.params[2]);
+        if (typeof chan !== "undefined")
+            chan._creation =
+                parseInt(res.params[2]);
     },
     "NOTICE": function (res) {
         var who = parse.sender(res.prefix);
@@ -183,10 +182,19 @@ var parse = module.exports = {
                 var param = match[1];
                 var value = match[2];
                 switch (param) {
+                case "CHANTYPES":
+                    this._caps;
+                    break;
                 case "CHANMODES":
                     break;
                 case "PREFIX":
-                    this.log(value);
+                    var re = /\((.+)\)(.+)/;
+                    var prefs = value.split(re);
+
+                    this._caps.chanmodes = {
+                        mode: prefs[1].split(""),
+                        prefix: prefs[2].split(""),
+                    }
                     break;
                 }
             }

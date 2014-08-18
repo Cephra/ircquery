@@ -7,7 +7,7 @@ var Channel = function (name, that) {
 Channel.prototype = {
     // rejoin on kick
     rejoin: true,
-    // add nick(s)
+    // nicklist functions
     add: function (arg) {
         var nick = /^([@+]*)(.+)/;
         if (typeof arg === "string") {
@@ -24,17 +24,14 @@ Channel.prototype = {
             }
         }
     },
-    // delete nick
     del: function (arg) {
         delete this._nicks[arg];
     },
-    // change a nickname
     change: function(from, to) {
         var old = this._nicks[from];
         delete this._nicks[from];
         this._nicks[to] = old;
     },
-    // change mode of a nick
     mode: function (what, who) {
         var mode = what.split("");
         var modes = this._nicks[who];
@@ -52,25 +49,27 @@ Channel.prototype = {
         }
         this._nicks[who] = modes;
     },
-    // clear nicklist
     purge: function () {
         this._nicks = {};
     },
-    // return nicklist with prefixes
     nicklist: function () {
         var list = [];
         for (nick in this._nicks) {
             var mode = this._nicks[nick][0];
-            if (typeof mode === "string")
-                mode = mode
-                    .replace("v","+")
-                    .replace("o","@");
-            else
-                mode = "";
+            if (typeof mode === "string") {
+                var chanmodes = 
+                    this._that._caps.chanmodes;
+                var i = 
+                    chanmodes.mode.indexOf(mode);
+                mode = mode.replace(
+                        chanmodes.mode[i],
+                        chanmodes.prefix[i]);
+            } else { mode = ""; }
             list.push(mode+nick);
         }
-        return list.sort();
+        return list;
     },
+    // irc functions
     say: function (msg) {
         this._that.say(this._name, msg);
         return this;
@@ -84,6 +83,9 @@ Channel.prototype = {
 var Channels = {
     add: function (name, that) {
         this[name] = new Channel(name, that);
+    },
+    del: function (name) {
+        delete this[name];
     },
     each: function (func) {
         for (var chan in this) {

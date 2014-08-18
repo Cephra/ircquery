@@ -58,7 +58,7 @@ var Client = function (opts) {
     this._sock = new net.Socket();
     this._cmdbuf = [];
     this._delay = 0;
-    this._connected = false;
+    this._caps = {};
 
     // channel list
     this.channels = Object.create(list.Channels);
@@ -129,14 +129,11 @@ proto.say = function (target, msg) {
 proto.join = function (chan, rejoin) {
     this
         .cmd("JOIN "+chan)
-        .cmd("MODE "+chan)
-        .cmd("MODE "+chan+" +q")
-        .cmd("MODE "+chan+" +b")
-        .once("_"+chan, function () {
-            this.channels[chan].rejoin = 
-                ((typeof rejoin === "undefined") ?
-                true : rejoin);
-        });
+        .channels.add(chan, this);
+    this.channels[chan].rejoin =
+        (typeof rejoin === "undefined") ?
+        true : rejoin;
+
     return this;
 };
 proto.part = function (chan, msg) {
