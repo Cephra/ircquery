@@ -1,7 +1,7 @@
 var Channel = function (name, that) {
     this._that = that;
     this._name = name;
-    
+
     this._nicks = {};
 };
 Channel.prototype = {
@@ -100,4 +100,4 @@ var Channels = {
         return Object.getOwnPropertyNames(this);
     }
 };
-module.exports = Channels;
+module.exports.Channels = Channels;

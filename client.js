@@ -2,7 +2,7 @@ var util = require("util");
 var net = require("net");
 var events = require("events");
 var parse = require("./parse");
-var channels = require("./channels.js");
+var list = require("./list.js");
 
 // default configuration
 var defaults = {
@@ -22,7 +22,9 @@ var bufcb = function (that) {
         that.log("cmd: "+cmd);
         sock.write(cmd+"\r\n");
 
-        that._delay += 10;
+        that._delay = (that._delay < 1000) ?
+            that._delay+250 : that._delay;
+
         setTimeout(bufcb, that._delay, that);
     } else { that._delay = 0; }
 }
@@ -56,18 +58,30 @@ var Client = function (opts) {
     this._sock = new net.Socket();
     this._cmdbuf = [];
     this._delay = 0;
-
-    // dbg TODO: remove
-    this.caps = [];
+    this._connected = false;
 
     // channel list
-    this.channels = Object.create(channels);
+    this.channels = Object.create(list.Channels);
     
     // parser
     this.on("raw", function (res) {
         this.log(res.line);
         if (parse[res.type])
             parse[res.type].call(this, res);
+    });
+
+    // getter/setter
+    Object.defineProperties(this, {
+        // change name back on error
+        nick: {
+            get: function () {
+                return this._opts.nick;
+            },
+            set: function (v) {
+                this._opts.nick = v;
+                this.cmd("NICK "+v);
+            },
+        },
     });
 };
 util.inherits(Client, events.EventEmitter);
@@ -84,15 +98,32 @@ proto.dir = function (arg) {
         console.dir(arg);
 }
 // irc functions
+proto._cmd = function (cmd) {
+    this.log("cmd: "+cmd);
+    this._sock.write(cmd+"\r\n");
+}
 proto.cmd = function (cmd, nobuf) {
+    // no buffering?
     if (nobuf) {
-        // no buffering
+        this._cmd(cmd);
         return this;
     }
     this._cmdbuf.push(cmd);
     if (this._delay === 0) {
         bufcb(this);
     }
+    return this;
+};
+proto.say = function (target, msg) {
+    if (typeof msg === "undefined")
+        return this;
+    msg.toString().split(/\r?\n/)
+        .filter(function (v) {
+            return v.length > 0;
+        })
+        .forEach(function (v) {
+            this.cmd("PRIVMSG "+target+" :"+v);
+        }, this);
     return this;
 };
 proto.join = function (chan, rejoin) {
@@ -102,7 +133,9 @@ proto.join = function (chan, rejoin) {
         .cmd("MODE "+chan+" +q")
         .cmd("MODE "+chan+" +b")
         .once("_"+chan, function () {
-            this.channels[chan].rejoin = rejoin;
+            this.channels[chan].rejoin = 
+                ((typeof rejoin === "undefined") ?
+                true : rejoin);
         });
     return this;
 };
@@ -111,13 +144,6 @@ proto.part = function (chan, msg) {
     msg = (msg) ? " :"+msg : "";
     this.cmd("PART "+chan+msg);
 
-    return this;
-};
-proto.say = function (target, msg) {
-    // TODO line break splitting
-    if (typeof msg !== "undefined") {
-        this.cmd("PRIVMSG "+target+" :"+msg);
-    }
     return this;
 };
 // connect
@@ -139,14 +165,10 @@ proto.connect = function () {
     // event handler for "connect" and "data"
     sock.on("connect", function () {
         // logging in
-        that.cmd("NICK "+opts.nick);
+        that.cmd("NICK "+opts.nick, true);
         that.cmd("USER "+
-                opts.user+" 0 * :"+opts.desc);
-        that.cmd("CAP REQ :multi-prefix");
-        that.cmd("PROTOCTL NAMESX");
-
-        // emit login event
-        that.emit("login");
+                opts.user+" 0 * :"+opts.desc,
+                true);
     });
     var buff = "";
     sock.on("data", function (chunk) {

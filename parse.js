@@ -1,6 +1,35 @@
+var sender = function (sender) {
+    var User = function (nick, user, host) {
+        this.nick = nick;
+        this.user = user;
+        this.host = host;
+    };
+    if (sender.indexOf("!") != -1) {
+        // split up the sender string
+        var nicksplt = sender.split("!");
+        var hostsplt = nicksplt[1].split("@");
+
+        // build the usr object and return it
+        return new User(
+            nicksplt[0],
+            hostsplt[0],
+            hostsplt[1]);
+    } else {
+        return sender;
+    }
+};
 var parse = module.exports = {
     "PING": function (res) {
-        this.cmd("PONG :"+res.args);
+        this.cmd("PONG :"+res.args, true);
+    },
+    "251": function (res) {
+        this._connected = true;
+
+        // request multi prefix
+        this.cmd("CAP REQ :multi-prefix", true);
+
+        // login successful
+        this.emit("login");
     },
     "NICK": function (res) {
         var who = parse.sender(res.prefix);
@@ -22,78 +51,80 @@ var parse = module.exports = {
     },
     "PART": function (res) {
         var who = parse.sender(res.prefix);
+        var where = res.params[0];
         
         if (who.nick === this._opts.nick) {
             // remove channel from list
-            delete this.channels[res.params];
+            delete this.channels[where];
             this.emit("partfrom",
-                    res.params,
+                    where,
                     res.args);
         } else {
             // remove user from channel
-            this.channels[res.params].
+            this.channels[where].
                 del(who.nick);
             this.emit("partin",
-                    res.params, 
+                    where, 
                     who, 
                     res.args);
         }
     },
     "KICK": function (res) {
         var who = parse.sender(res.prefix);
-        var params = res.params.split(" ");
+        var where = res.params[0];
 
         // either remove channel or nick
-        if (params[1] === this._opts.nick) {
-            var chan = this.channels[params[0]];
+        if (res.params[1] === this._opts.nick) {
+            var chan = this.channels[where];
             if (chan.rejoin) {
-                this.join(params[0], true);
                 chan.purge();
+                this.join(where, true);
             } else {
-                delete this.channels[params[0]];
+                delete this.channels[where];
             }
             this.emit("kickfrom",
-                    params[0],
+                    where,
                     who,
                     res.args);
         } else {
-            this.channels[params[0]].
-                del(params[1]);
+            this.channels[where].
+                del(res.params[1]);
             this.emit("kickin",
-                    params[0], 
+                    where, 
                     who,
-                    params[1],
+                    res.params[1],
                     res.args);
         }
     },
     "JOIN": function (res) {
         var who = parse.sender(res.prefix);
+        var where = res.params[0];
         
         if (who.nick === this._opts.nick) {
-            this.channels.add(res.params, this);
-            this.log("added channel: "+res.params);
+            this.channels.add(where, this);
+            this.log("added channel: "+
+                    res.params[0]);
 
             // internal event
-            this.emit("_"+res.params);
-            this.removeAllListeners("_"+res.params);
+            this.emit("_"+where);
 
-            this.emit("jointo",res.params);
+            this.emit("jointo",where);
         } else {
-            this.channels[res.params].
+            this.channels[where].
                 add(who.nick);
-            this.emit("joinin", res.params, who);
+            this.emit("joinin", where, who);
         }
     },
     "MODE": function (res) {
         var who = parse.sender(res.prefix);
 
-        var params = res.params.split(" ");
-        if (params[0][0] === "#") {
-            var chan = this.channels[params[0]];
-            if (params[2]) {
-                var nick = parse.sender(params[2]);
+        if (res.params[0][0] === "#") {
+            var chan = this.channels[res.params[0]];
+            if (res.params[2]) {
+                var nick = 
+                    parse.sender(res.params[2]);
                 if (typeof nick === "string") {
-                    chan.mode(params[1],nick);
+                    chan.mode(res.params[1],nick);
                 } else {
                     // TODO parse list modes
                 }
@@ -105,78 +136,62 @@ var parse = module.exports = {
         }
     },
     "353": function (res) {
-        var chan = 
-            res.params.split(/\s[=*@]\s/)[1];
+        var chan = res.params[2];
         var names = res.args.split(" ");
 
-        this.log("receiving names in "+chan);
-
         // pass name array to channel
+        this.log("receiving names in "+chan);
         this.channels[chan].add(names);
     },
-    "366": function (res) {
-
-    },
     "324": function (res) {
-        var params = res.params.split(" ");
-        var chan = this.channels[params[1]];
-        chan._flags = params[2].replace("+","");
+        var chan = this.channels[res.params[1]];
+        chan._flags = 
+            res.params[2].replace("+","");
     },
     "329": function (res) {
-        var params = res.params.split(" ");
-        var chan = this.channels[params[1]];
-        chan._creation = parseInt(params[2]);
+        var chan = this.channels[res.params[1]];
+        chan._creation = parseInt(res.params[2]);
     },
     "NOTICE": function (res) {
-        var from = parse.sender(res.prefix);
+        var who = parse.sender(res.prefix);
 
         this.emit("notice",
-                from,
+                who,
                 res.params,
                 res.args);
     },
     "PRIVMSG": function (res) {
-        var from = parse.sender(res.prefix);
+        var who = parse.sender(res.prefix);
+        var where = res.params[0];
 
-        if (res.params[0] == "#") {
+        if (where[0] === "#") {
             this.emit("chanmsg", 
-                    res.params,
-                    from,
+                    where,
+                    who,
                     res.args);
         } else { 
             this.emit("privmsg", 
-                    from,
+                    who,
                     res.args);
         }
     },
     "005": function (res) {
-        var split = res.params.split(" ")
-            .slice(1);
-        this.caps = this.caps.concat(split);
-        //split.forEach(function (v) {
-        //    this.caps += v;
-        //}, this);
+        var split = res.params.slice(1);
+        split.forEach(function (v) {
+            var match;
+            if (match = v.match(/([A-Z]+)=(.*)/)) {
+                var param = match[1];
+                var value = match[2];
+                switch (param) {
+                case "CHANMODES":
+                    break;
+                case "PREFIX":
+                    this.log(value);
+                    break;
+                }
+            }
+        }, this);
     },
-};
-var sender = function (sender) {
-    User = function (nick, user, host) {
-        this.nick = nick;
-        this.user = user;
-        this.host = host;
-    };
-    if (sender.indexOf("!") > -1) {
-        // split up the sender string
-        var nicksplt = sender.split("!");
-        var hostsplt = nicksplt[1].split("@");
-
-        // build the usr object and return it
-        return new User(
-            nicksplt[0],
-            hostsplt[0],
-            hostsplt[1]);
-    } else {
-        return sender;
-    }
 };
 module.exports.sender = sender;
 module.exports.res = function (line) {
@@ -197,8 +212,8 @@ module.exports.res = function (line) {
 
         // arguments?
         var i = _line[3].indexOf(" :");
-        if (i >= 0) {
-            i++; // move index to the right
+        if (i != -1) {
+            i++;
             var splt = [
                 _line[3].substring(0,i-1),
                 _line[3].substring(i+1),
@@ -206,8 +221,12 @@ module.exports.res = function (line) {
             response.params = splt[0];
             response.args = splt[1];
         } else { // no arguments
-            response.params = _line[3];
+            response.params = 
+                (_line[3][0] === ":") ? 
+                _line[3].substr(1) : _line[3];
         }
+        response.params =
+            response.params.split(" ");
     } else if (_line = line.match(re2)) {
         response.type = _line[1];
         response.args = _line[2];
