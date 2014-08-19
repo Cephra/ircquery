@@ -1,3 +1,14 @@
+function charSwitch(arr1, arr2, elem) {
+    var index = arr1.indexOf(elem);
+    return arr2[index];
+}
+var prefixToMode = function (v, i, arr) {
+    arr[i] = charSwitch(this, this.mode, v);
+}
+var modeToPrefix = function (v, i, arr) {
+    arr[i] = charSwitch(this.mode, this, v);
+}
+
 var Channel = function (name, that) {
     this._that = that;
     this._name = name;
@@ -9,18 +20,26 @@ Channel.prototype = {
     rejoin: true,
     // nicklist functions
     add: function (arg) {
-        var nick = /^([@+]*)(.+)/;
+        var prefix = 
+            this._that._caps.prefix;
+        var mode = prefix.mode;
+
+        // prefix regex
+        var repref = "["+prefix.join("")+"]*";
+        var re = new RegExp("^("+repref+")(.+)");
+
         if (typeof arg === "string") {
             this._nicks[arg] = []; 
         } else if (Array.isArray(arg)) {
             for (var x = 0; x < arg.length; x++) {
-                var item = arg[x].match(nick);
-                var modes = item[1]
-                    .replace("@","o")
-                    .replace("+","v")
-                    .split("");
+                var item = arg[x].match(re);
+
+                var prefs = item[1].split("");
+                prefs.forEach(prefixToMode,
+                        prefix);
+
                 this._nicks[item[2]] =
-                    modes;
+                    prefs;
             }
         }
     },
@@ -57,13 +76,13 @@ Channel.prototype = {
         for (nick in this._nicks) {
             var mode = this._nicks[nick][0];
             if (typeof mode === "string") {
-                var chanmodes = 
-                    this._that._caps.chanmodes;
+                var prefixes = 
+                    this._that._caps.prefixes;
                 var i = 
-                    chanmodes.mode.indexOf(mode);
+                    prefixes.mode.indexOf(mode);
                 mode = mode.replace(
-                        chanmodes.mode[i],
-                        chanmodes.prefix[i]);
+                        prefixes.mode[i],
+                        prefixes[i]);
             } else { mode = ""; }
             list.push(mode+nick);
         }

@@ -8,6 +8,7 @@ var list = require("./list.js");
 var defaults = {
     host: "chat.freenode.net",
     port: 6667,
+    pass: "",
     nick: "defnick",
     user: "defuser",
     desc: "defdesc",
@@ -41,6 +42,8 @@ var Client = function (opts) {
                 defaults : opts).host;
         opts.port = (typeof opts.port !== "number" ?
                 defaults : opts).port;
+        opts.pass = (typeof opts.pass !== "string" ?
+                defaults : opts).pass;
 
         opts.nick = (typeof opts.nick !== "string" ?
                 defaults : opts).nick;
@@ -162,6 +165,9 @@ proto.connect = function () {
     // event handler for "connect" and "data"
     sock.on("connect", function () {
         // logging in
+        var pass = that._opts.pass;
+        if (pass.length > 0)
+            that.cmd("PASS "+pass, true);
         that.cmd("NICK "+opts.nick, true);
         that.cmd("USER "+
                 opts.user+" 0 * :"+opts.desc,

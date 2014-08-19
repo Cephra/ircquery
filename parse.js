@@ -183,18 +183,24 @@ var parse = module.exports = {
                 var value = match[2];
                 switch (param) {
                 case "CHANTYPES":
-                    this._caps;
                     break;
                 case "CHANMODES":
+                    var modes = value.split(",");
+                    this._caps.chanmodes = {
+                        A: modes[0],
+                        B: modes[1],
+                        C: modes[2],
+                        D: modes[3],
+                    }
                     break;
                 case "PREFIX":
                     var re = /\((.+)\)(.+)/;
                     var prefs = value.split(re);
 
-                    this._caps.chanmodes = {
-                        mode: prefs[1].split(""),
-                        prefix: prefs[2].split(""),
-                    }
+                    this._caps.prefix = 
+                        prefs[2].split("");
+                    this._caps.prefix.mode = 
+                        prefs[1].split("");
                     break;
                 }
             }
