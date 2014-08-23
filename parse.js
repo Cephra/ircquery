@@ -1,3 +1,43 @@
+var res = function (line) {
+    var response = {
+        line: line,
+    };
+
+    // first stage RE
+    var re1 = 
+        /^:([^\s]+)\s([^\s]+)\s(.+)$/;
+    var re2 = 
+        /^([^\s]+)\s:(.+)$/;
+
+    var _line;
+    if (_line = line.match(re1)) {
+        response.type = _line[2];
+        response.prefix = _line[1];
+
+        // arguments?
+        var i = _line[3].indexOf(" :");
+        if (i != -1) {
+            i++;
+            var splt = [
+                _line[3].substring(0,i-1),
+                _line[3].substring(i+1),
+            ];
+            response.params = splt[0];
+            response.args = splt[1];
+        } else { // no arguments
+            response.params = 
+                (_line[3][0] === ":") ? 
+                _line[3].substr(1) : _line[3];
+        }
+        response.params =
+            response.params.split(" ");
+    } else if (_line = line.match(re2)) {
+        response.type = _line[1];
+        response.args = _line[2];
+    }
+
+    return response;
+};
 var sender = function (sender) {
     var User = function (nick, user, host) {
         this.nick = nick;
@@ -207,44 +247,7 @@ var parse = module.exports = {
         }, this);
     },
 };
+
+// export the submodules
+module.exports.res = res;
 module.exports.sender = sender;
-module.exports.res = function (line) {
-    var response = {
-        line: line,
-    };
-
-    // first stage RE
-    var re1 = 
-        /^:([^\s]+)\s([^\s]+)\s(.+)$/;
-    var re2 = 
-        /^([^\s]+)\s:(.+)$/;
-
-    var _line;
-    if (_line = line.match(re1)) {
-        response.type = _line[2];
-        response.prefix = _line[1];
-
-        // arguments?
-        var i = _line[3].indexOf(" :");
-        if (i != -1) {
-            i++;
-            var splt = [
-                _line[3].substring(0,i-1),
-                _line[3].substring(i+1),
-            ];
-            response.params = splt[0];
-            response.args = splt[1];
-        } else { // no arguments
-            response.params = 
-                (_line[3][0] === ":") ? 
-                _line[3].substr(1) : _line[3];
-        }
-        response.params =
-            response.params.split(" ");
-    } else if (_line = line.match(re2)) {
-        response.type = _line[1];
-        response.args = _line[2];
-    }
-
-    return response;
-};
