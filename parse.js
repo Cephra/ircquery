@@ -38,24 +38,18 @@ var res = function (line) {
 
     return response;
 };
-var sender = function (sender) {
-    var User = function (nick, user, host) {
-        this.nick = nick;
-        this.user = user;
-        this.host = host;
-    };
-    if (sender.indexOf("!") != -1) {
-        // split up the sender string
-        var nicksplt = sender.split("!");
+var User = function (hoststring) {
+    this.nick = hoststring;
+    if (this.nick.indexOf("!") != -1) {
+        var nicksplt = this.nick.split("!");
         var hostsplt = nicksplt[1].split("@");
+        
+        // set nick
+        this.nick = nicksplt[0];
 
-        // build the usr object and return it
-        return new User(
-            nicksplt[0],
-            hostsplt[0],
-            hostsplt[1]);
-    } else {
-        return sender;
+        // and user@host
+        this.user = hostsplt[0];
+        this.host = hostsplt[1];
     }
 };
 var parse = module.exports = {
@@ -72,7 +66,7 @@ var parse = module.exports = {
         this.emit("login");
     },
     "NICK": function (res) {
-        var who = parse.sender(res.prefix);
+        var who = new User(res.prefix);
         var to = res.args;
 
         // change nick in all channels
@@ -81,7 +75,7 @@ var parse = module.exports = {
         });
     },
     "QUIT": function (res) {
-        var who = parse.sender(res.prefix);
+        var who = new User(res.prefix);
 
         // remove nick from all channels
         this.channels.each(function (chan) {
@@ -90,7 +84,7 @@ var parse = module.exports = {
         this.emit("quit", who, res.args);
     },
     "PART": function (res) {
-        var who = parse.sender(res.prefix);
+        var who = new User(res.prefix);
         var where = res.params[0];
         
         if (who.nick === this._opts.nick) {
@@ -110,7 +104,7 @@ var parse = module.exports = {
         }
     },
     "KICK": function (res) {
-        var who = parse.sender(res.prefix);
+        var who = new User(res.prefix);
         var where = res.params[0];
 
         // either remove channel or nick
@@ -137,7 +131,7 @@ var parse = module.exports = {
         }
     },
     "JOIN": function (res) {
-        var who = parse.sender(res.prefix);
+        var who = new User(res.prefix);
         var where = res.params[0];
         
         if (who.nick === this._opts.nick) {
@@ -152,26 +146,37 @@ var parse = module.exports = {
         }
     },
     "MODE": function (res) {
-        var who = parse.sender(res.prefix);
+        var who = new User(res.prefix);
 
         if (res.params[0][0] === "#") {
-            var chan = this.channels[res.params[0]];
+            var chan = 
+                this.channels[res.params[0]];
             if (res.params[2]) {
-                var nick = 
-                    parse.sender(res.params[2]);
-                if (typeof nick === "string") {
-                    chan.mode(res.params[1],nick);
+                // changed on who?
+                var user = new User(res.params[2]);
+
+                // list or nick mode?
+                var whatmode = this.
+                    _caps.prefix.mode
+                    .indexOf(res.params[1][1]);
+
+                // change either 
+                // nick or list mode
+                if (whatmode != -1) {
+                    chan.mode(res.params[1], 
+                            user.nick);
                 } else {
-                    // TODO parse list modes
+                    this.log("list mode changed");
                 }
             } else {
-                // TODO parse channel flags
+                this.log("channel mode changed");
             }
         } else {
-            // TODO parse global user flags
+            this.log("user mode changed");
         }
     },
     "353": function (res) {
+        // where and who
         var chan = res.params[2];
         var names = res.args.split(" ");
 
@@ -192,7 +197,7 @@ var parse = module.exports = {
                 parseInt(res.params[2]);
     },
     "NOTICE": function (res) {
-        var who = parse.sender(res.prefix);
+        var who = new User(res.prefix);
 
         this.emit("notice",
                 who,
@@ -200,7 +205,7 @@ var parse = module.exports = {
                 res.args);
     },
     "PRIVMSG": function (res) {
-        var who = parse.sender(res.prefix);
+        var who = new User(res.prefix);
         var where = res.params[0];
 
         if (where[0] === "#") {
@@ -250,4 +255,4 @@ var parse = module.exports = {
 
 // export the submodules
 module.exports.res = res;
-module.exports.sender = sender;
+module.exports.User = User;
