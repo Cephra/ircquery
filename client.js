@@ -186,5 +186,9 @@ proto.connect = function () {
             that.emit("raw", res);
         });
     });
+    sock.on("close", function() {
+        // TODO make it reconnect
+        process.exit();
+    });
 };
 module.exports = Client;
