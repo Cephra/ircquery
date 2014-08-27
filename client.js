@@ -155,6 +155,7 @@ proto.connect = function () {
     // setup socket
     sock.setEncoding("utf8");
     sock.setTimeout(0);
+    sock.setKeepAlive(true);
 
     // init connection
     that.log("connecting...");
@@ -173,9 +174,9 @@ proto.connect = function () {
                 opts.user+" 0 * :"+opts.desc,
                 true);
     });
+    // line buffering on data receive
     var buff = "";
     sock.on("data", function (chunk) {
-        // line buffering 
         buff += chunk;
     
         var lines = buff.split("\r\n");
