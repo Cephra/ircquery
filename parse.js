@@ -163,8 +163,7 @@ var parse = module.exports = {
                 // change either 
                 // nick or list mode
                 if (whatmode != -1) {
-                    chan.mode(res.params[1], 
-                            user.nick);
+                    // TODO add mode to nick
                 } else {
                     this.log("list mode changed");
                 }
@@ -176,11 +175,10 @@ var parse = module.exports = {
         }
     },
     "353": function (res) {
-        // where and who
         var chan = res.params[2];
         var names = res.args.split(" ");
 
-        // pass name array to channel
+        // receiving name, add them to channel
         this.log("receiving names in "+chan);
         this.channels[chan].add(names);
     },
