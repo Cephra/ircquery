@@ -107,18 +107,14 @@ var Channels = {
         delete this[name];
     },
     each: function (func) {
-        for (var chan in this) {
-            // filter out member functions
-            if (typeof this[chan] === "function")
-                continue;
-
-            // execute callback with channel
+        var chans = Object.keys(this);
+        chans.forEach(function (chan) {
             if (typeof func === "function")
                 func(this[chan]);
-        }
+        }, this);
     },
     list: function () {
-        return Object.getOwnPropertyNames(this);
+        return Object.keys(this);
     }
 };
 module.exports.Channels = Channels;

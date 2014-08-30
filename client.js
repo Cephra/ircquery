@@ -2,17 +2,7 @@ var util = require("util");
 var net = require("net");
 var events = require("events");
 var parse = require("./parse");
-var list = require("./list.js");
-
-// default configuration
-var defaults = {
-    host: "chat.freenode.net",
-    port: 6667,
-    pass: "",
-    nick: "defnick",
-    user: "defuser",
-    desc: "defdesc",
-};
+var list = require("./list");
 
 // buffer worker
 var bufcb = function (that) {
@@ -34,30 +24,24 @@ var bufcb = function (that) {
 var Client = function (opts) {
     events.EventEmitter.call(this);
 
-    // validate options
-    if (typeof opts !== "object") {
-        opts = defaults;
-    } else {
-        opts.host = (typeof opts.host !== "string" ?
-                defaults : opts).host;
-        opts.port = (typeof opts.port !== "number" ?
-                defaults : opts).port;
-        opts.pass = (typeof opts.pass !== "string" ?
-                defaults : opts).pass;
-
-        opts.nick = (typeof opts.nick !== "string" ?
-                defaults : opts).nick;
-        opts.user = (typeof opts.user !== "string" ?
-                defaults : opts).user;
-        opts.desc = (typeof opts.desc !== "string" ?
-                defaults : opts).desc;
+    var defs = this._opts = {
+        host: "chat.freenode.net",
+        port: 6667,
+        pass: "",
+        nick: "defnick",
+        user: "defuser",
+        desc: "defdesc",
+    };
+    for (key in defs) {
+        if (opts[key] != undefined) {
+            defs[key] = opts[key];
+        }
     }
 
     // debug flag
     this.dbg = false;
 
     // member
-    this._opts = opts;
     this._sock = new net.Socket();
     this._cmdbuf = [];
     this._delay = 0;
@@ -155,7 +139,6 @@ proto.connect = function () {
     // setup socket
     sock.setEncoding("utf8");
     sock.setTimeout(0);
-    sock.setKeepAlive(true);
 
     // init connection
     that.log("connecting...");

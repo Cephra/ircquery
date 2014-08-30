@@ -56,6 +56,10 @@ var parse = module.exports = {
     "PING": function (res) {
         this.cmd("PONG :"+res.args, true);
     },
+    "PONG": function (res) {
+        // we received a pong,
+        // thus things are still going on
+    },
     "251": function (res) {
         this._connected = true;
 
