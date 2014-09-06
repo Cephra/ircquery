@@ -3,7 +3,7 @@ var res = function (line) {
         line: line,
     };
 
-    // first stage RE
+    // split regex
     var re1 = 
         /^:([^\s]+)\s([^\s]+)\s(.+)$/;
     var re2 = 
@@ -52,19 +52,36 @@ var User = function (hoststring) {
         this.host = hostsplt[1];
     }
 };
+var watchdog = function (that) {
+    setTimeout(function () {
+        that.cmd("PING :"+
+                that._opts.host,
+                true);
+        that.timeout = setTimeout(function () {
+            process.exit();
+        }, 10000);
+    }, 10000);
+};
 var parse = module.exports = {
+    "PONG": function (res) {
+        var that = this;
+        clearTimeout(that.timeout);
+        watchdog(that);
+    },
     "PING": function (res) {
         this.cmd("PONG :"+res.args, true);
     },
-    "PONG": function (res) {
-        // we received a pong,
-        // thus things are still going on
+    "433": function (res) {
+        this.nick += "_";
     },
     "251": function (res) {
         this._connected = true;
 
         // request multi prefix
         this.cmd("CAP REQ :multi-prefix", true);
+
+        // start connection watchdog
+        watchdog(this);
 
         // login successful
         this.emit("login");
@@ -164,8 +181,6 @@ var parse = module.exports = {
                     _caps.prefix.mode
                     .indexOf(res.params[1][1]);
 
-                // change either 
-                // nick or list mode
                 if (whatmode != -1) {
                     // TODO add mode to nick
                 } else {

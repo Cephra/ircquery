@@ -32,9 +32,11 @@ var Client = function (opts) {
         user: "defuser",
         desc: "defdesc",
     };
-    for (key in defs) {
-        if (opts[key] != undefined) {
-            defs[key] = opts[key];
+    if (typeof opts === "object") {
+        for (key in defs) {
+            if (opts[key] != undefined) {
+                defs[key] = opts[key];
+            }
         }
     }
 
@@ -42,7 +44,6 @@ var Client = function (opts) {
     this.dbg = false;
 
     // member
-    this._sock = new net.Socket();
     this._cmdbuf = [];
     this._delay = 0;
     this._caps = {};
@@ -133,7 +134,8 @@ proto.part = function (chan, msg) {
 // connect
 proto.connect = function () {
     var that = this;
-    var sock = that._sock;
+    var sock = that._sock =
+        new net.Socket();
     var opts = that._opts;
 
     // setup socket
