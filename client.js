@@ -10,8 +10,7 @@ var bufcb = function (that) {
     if (cmdbuf.length > 0) {
         var sock = that._sock;
         var cmd = that._cmdbuf.shift();
-        that.log("cmd: "+cmd);
-        sock.write(cmd+"\r\n");
+        that._cmd(cmd); // send cmd
 
         that._delay = (that._delay < 1000) ?
             that._delay+250 : that._delay;

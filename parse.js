@@ -53,14 +53,15 @@ var User = function (hoststring) {
     }
 };
 var watchdog = function (that) {
+    var timeout = 15*1000;
     setTimeout(function () {
         that.cmd("PING :"+
                 that._opts.host,
                 true);
         that.timeout = setTimeout(function () {
             process.exit();
-        }, 10000);
-    }, 10000);
+        }, timeout);
+    }, timeout);
 };
 var parse = module.exports = {
     "PONG": function (res) {
@@ -69,14 +70,14 @@ var parse = module.exports = {
         watchdog(that);
     },
     "PING": function (res) {
+        // auto-respond to PING requests
         this.cmd("PONG :"+res.args, true);
     },
     "433": function (res) {
+        // nickname already taken, append underscore
         this.nick += "_";
     },
     "251": function (res) {
-        this._connected = true;
-
         // request multi prefix
         this.cmd("CAP REQ :multi-prefix", true);
 
@@ -85,6 +86,9 @@ var parse = module.exports = {
 
         // login successful
         this.emit("login");
+
+        // successfully logged in
+        // TODO set a login flag to true
     },
     "NICK": function (res) {
         var who = new User(res.prefix);
