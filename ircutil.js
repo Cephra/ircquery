@@ -54,28 +54,27 @@ var User = function (userstring) {
     }
 };
 
-
-var watchdog = function (that) {
-    var timeout = 15*1000;
+var workerPing = function (that) {
+    var tmout = 15*1000;
+    clearTimeout(that.timeout);
     setTimeout(function () {
         that.cmd("PING :"+
-                that._opts.host,
-                true);
+                that._opts.host);
         that.timeout = setTimeout(function () {
             process.exit();
-        }, timeout);
-    }, timeout);
+        }, tmout);
+    }, tmout);
 };
 
 var handlers = module.exports.handlers = {
     "PONG": function (res) {
         var that = this;
         clearTimeout(that.timeout);
-        watchdog(that);
+        workerPing(that);
     },
     "PING": function (res) {
         // auto-respond to PING requests
-        this.cmd("PONG :"+res.args, true);
+        this.cmd("PONG :"+res.args);
     },
     "433": function (res) {
         // nickname already taken, append underscore
@@ -83,10 +82,10 @@ var handlers = module.exports.handlers = {
     },
     "251": function (res) {
         // request multi prefix
-        this.cmd("CAP REQ :multi-prefix", true);
+        this.cmd("CAP REQ :multi-prefix");
 
         // start connection watchdog
-        watchdog(this);
+        workerPing(this);
 
         // login successful
         this.emit("login");
