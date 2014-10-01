@@ -1,16 +1,15 @@
 var res = function (line) {
-    var response = {
-        line: line,
-    };
+    var response = {};
+    response.line = line;
 
     // split regex
-    var re1 = 
+    var reLong = 
         /^:([^\s]+)\s([^\s]+)\s(.+)$/;
-    var re2 = 
+    var reShort = 
         /^([^\s]+)\s:(.+)$/;
 
     var _line;
-    if (_line = line.match(re1)) {
+    if (_line = line.match(reLong)) {
         response.type = _line[2];
         response.prefix = _line[1];
 
@@ -38,20 +37,24 @@ var res = function (line) {
 
     return response;
 };
-var User = function (hoststring) {
-    this.nick = hoststring;
-    if (this.nick.indexOf("!") != -1) {
-        var nicksplt = this.nick.split("!");
-        var hostsplt = nicksplt[1].split("@");
+var User = function (userstring) {
+    this.raw = userstring;
+    if (this.raw.indexOf("!") != -1) {
+        var spltNick = this.raw.split("!");
+        var spltHost = spltNick[1].split("@");
         
         // set nick
-        this.nick = nicksplt[0];
+        this.nick = spltNick[0];
 
         // and user@host
-        this.user = hostsplt[0];
-        this.host = hostsplt[1];
+        this.user = spltHost[0];
+        this.host = spltHost[1];
+    } else {
+        this.nick = this.raw;
     }
 };
+
+
 var watchdog = function (that) {
     var timeout = 15*1000;
     setTimeout(function () {
@@ -63,7 +66,8 @@ var watchdog = function (that) {
         }, timeout);
     }, timeout);
 };
-var parse = module.exports = {
+
+var handlers = module.exports.handlers = {
     "PONG": function (res) {
         var that = this;
         clearTimeout(that.timeout);

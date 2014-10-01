@@ -1,11 +1,11 @@
 var util = require("util");
 var net = require("net");
 var events = require("events");
-var parse = require("./parse");
-var list = require("./list");
+var ircutil = require("./ircutil");
+var list = require("./lists");
 
-// buffer worker
-var bufcb = function (that) {
+// buffer worker TODO: make this more pretty
+var workerSend = function (that) {
     var cmdbuf = that._cmdbuf;
     if (cmdbuf.length > 0) {
         var sock = that._sock;
@@ -15,7 +15,7 @@ var bufcb = function (that) {
         that._delay = (that._delay < 1000) ?
             that._delay+250 : that._delay;
 
-        setTimeout(bufcb, that._delay, that);
+        setTimeout(workerSend, that._delay, that);
     } else { that._delay = 0; }
 }
 
@@ -50,22 +50,24 @@ var Client = function (opts) {
     // channel list
     this.channels = Object.create(list.Channels);
     
-    // parser
+    // handlers 
     this.on("raw", function (res) {
         this.log(res.line);
-        if (parse[res.type])
-            parse[res.type].call(this, res);
+        if (ircutil.handlers[res.type])
+            ircutil.handlers[res.type].call(this, res);
     });
 
-    // getter/setter
+    // getter & setter
     Object.defineProperties(this, {
-        // change name back on error
         nick: {
             get: function () {
                 return this._opts.nick;
             },
             set: function (v) {
-                this._opts.nick = v;
+                // nick is automatically changed
+                // when the server response is
+                // received
+                // this._opts.nick = v;
                 this.cmd("NICK "+v);
             },
         },
@@ -75,6 +77,7 @@ util.inherits(Client, events.EventEmitter);
 
 // shorthand
 var proto = Client.prototype;
+
 // logging functions
 proto.log = function (arg) {
     if (this.dbg)
@@ -84,22 +87,25 @@ proto.dir = function (arg) {
     if (this.dbg)
         console.dir(arg);
 }
+
 // irc functions
 proto._cmd = function (cmd) {
     this.log("cmd: "+cmd);
     this._sock.write(cmd+"\r\n");
 }
-proto.cmd = function (cmd, nobuf) {
-    // no buffering?
-    if (nobuf) {
+proto.cmd = function (cmd, dobuf) {
+    // buffering flag set?
+    if (dobuf) {
+        this._cmdbuf.push(cmd);
+        if (this._delay === 0) {
+            workerSend(this);
+        }
+        return this;
+    } else {
+        // don't buffer...
         this._cmd(cmd);
         return this;
     }
-    this._cmdbuf.push(cmd);
-    if (this._delay === 0) {
-        bufcb(this);
-    }
-    return this;
 };
 proto.say = function (target, msg) {
     if (typeof msg === "undefined")
@@ -109,7 +115,7 @@ proto.say = function (target, msg) {
             return v.length > 0;
         })
         .forEach(function (v) {
-            this.cmd("PRIVMSG "+target+" :"+v);
+            this.cmd("PRIVMSG "+target+" :"+v, true);
         }, this);
     return this;
 };
@@ -152,11 +158,10 @@ proto.connect = function () {
         // logging in
         var pass = that._opts.pass;
         if (pass.length > 0)
-            that.cmd("PASS "+pass, true);
-        that.cmd("NICK "+opts.nick, true);
+            that.cmd("PASS "+pass);
+        that.cmd("NICK "+opts.nick);
         that.cmd("USER "+
-                opts.user+" 0 * :"+opts.desc,
-                true);
+                opts.user+" 0 * :"+opts.desc);
     });
     // line buffering on data receive
     var buff = "";
@@ -167,7 +172,7 @@ proto.connect = function () {
         buff = lines.pop();
 
         lines.forEach(function (line) {
-            var res = parse.res(line);
+            var res = ircutil.res(line);
             that.emit("raw", res);
         });
     });
