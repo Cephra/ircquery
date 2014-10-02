@@ -7,10 +7,9 @@ var list = require("./lists");
 // handler the send buffer
 var workerSend = function (args) {
     var buf = args.buf;
-    if (cmdbuf.length > 0) {
-        var sock = args.socket;
+    if (buf.length > 0) {
         var cmd = buf.shift();
-        args.send(cmd); // send cmd
+        args.send(cmd);
 
         args.delay = (args.delay < 1000) ?
             args.delay+250 : args.delay;
@@ -115,13 +114,6 @@ proto.log = function (arg) {
     }
 }
 
-// irc functions
-// proto._cmd = function (cmd) {
-//     this.log("--> "+cmd);
-//     this.socket.write(cmd+"\r\n");
-// }
-proto.cmd = function (cmd, dobuf) {
-};
 proto.say = function (target, msg) {
     if (typeof msg === "undefined")
         return this;
@@ -145,7 +137,6 @@ proto.join = function (chan, rejoin) {
     return this;
 };
 proto.part = function (chan, msg) {
-    // send part to server
     msg = (msg) ? " :"+msg : "";
     this.cmd("PART "+chan+msg);
 
@@ -171,7 +162,7 @@ proto.connect = function () {
     // event handler for "connect" and "data"
     sock.on("connect", function () {
         // logging in
-        var pass = that._opts.pass;
+        var pass = opts.pass;
         if (pass.length > 0)
             that.cmd("PASS "+pass);
         that.cmd("NICK "+opts.nick);
