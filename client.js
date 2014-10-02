@@ -4,25 +4,29 @@ var events = require("events");
 var ircutil = require("./ircutil");
 var list = require("./lists");
 
-// buffer worker TODO: make this more pretty
-var workerSend = function (that) {
-    var cmdbuf = that._cmdbuf;
+// handler the send buffer
+var workerSend = function (args) {
+    var buf = args.buf;
     if (cmdbuf.length > 0) {
-        var sock = that._sock;
-        var cmd = that._cmdbuf.shift();
-        that._cmd(cmd); // send cmd
+        var sock = args.socket;
+        var cmd = buf.shift();
+        args.send(cmd); // send cmd
 
-        that._delay = (that._delay < 1000) ?
-            that._delay+250 : that._delay;
+        args.delay = (args.delay < 1000) ?
+            args.delay+250 : args.delay;
 
-        setTimeout(workerSend, that._delay, that);
-    } else { that._delay = 0; }
+        setTimeout(workerSend, args.delay, args);
+    } else { args.delay = 0; }
 }
 
 // client constructor
 var Client = function (opts) {
     events.EventEmitter.call(this);
 
+    // this to that
+    var that = this;
+
+    // configuration
     var defs = this._opts = {
         host: "chat.freenode.net",
         port: 6667,
@@ -39,24 +43,6 @@ var Client = function (opts) {
         }
     }
 
-    // debug flag
-    this.dbg = false;
-
-    // member
-    this._cmdbuf = [];
-    this._delay = 0;
-    this._caps = {};
-
-    // channel list
-    this.channels = Object.create(list.Channels);
-    
-    // handlers 
-    this.on("raw", function (res) {
-        this.log(res.line);
-        if (ircutil.handlers[res.type])
-            ircutil.handlers[res.type].call(this, res);
-    });
-
     // getter & setter
     Object.defineProperties(this, {
         nick: {
@@ -72,6 +58,46 @@ var Client = function (opts) {
             },
         },
     });
+
+    // debug flag
+    this.dbg = false;
+
+    // member
+    this._caps = {};
+
+    // buffer for the worker
+    var bufSend = {
+        buf: [],
+        delay: 0,
+        send: function (data) {
+            that.log("--> "+data);
+            that.socket.write(data+"\r\n");
+        },
+    }
+    this.cmd = function (data, dobuf) {
+        // buffering flag set?
+        if (dobuf) {
+            bufSend.buf.push(data);
+            if (bufSend.delay === 0) {
+                workerSend(bufSend);
+            }
+            return that;
+        } else {
+            // don't buffer...
+            bufSend.send(data);
+            return that;
+        }
+    };
+
+    // channel list
+    this.channels = Object.create(list.Channels);
+    
+    // handlers 
+    this.on("raw", function (res) {
+        this.log("<-- "+res.line);
+        if (ircutil.handlers[res.type])
+            ircutil.handlers[res.type].call(this, res);
+    });
 };
 util.inherits(Client, events.EventEmitter);
 
@@ -80,32 +106,21 @@ var proto = Client.prototype;
 
 // logging functions
 proto.log = function (arg) {
-    if (this.dbg)
+    if (this.dbg) {
+        var date = new Date();
+        console.log("["+
+                date.toDateString()+" "+
+                date.toLocaleTimeString()+"]");
         console.log(arg);
-}
-proto.dir = function (arg) {
-    if (this.dbg)
-        console.dir(arg);
+    }
 }
 
 // irc functions
-proto._cmd = function (cmd) {
-    this.log("cmd: "+cmd);
-    this._sock.write(cmd+"\r\n");
-}
+// proto._cmd = function (cmd) {
+//     this.log("--> "+cmd);
+//     this.socket.write(cmd+"\r\n");
+// }
 proto.cmd = function (cmd, dobuf) {
-    // buffering flag set?
-    if (dobuf) {
-        this._cmdbuf.push(cmd);
-        if (this._delay === 0) {
-            workerSend(this);
-        }
-        return this;
-    } else {
-        // don't buffer...
-        this._cmd(cmd);
-        return this;
-    }
 };
 proto.say = function (target, msg) {
     if (typeof msg === "undefined")
@@ -139,7 +154,7 @@ proto.part = function (chan, msg) {
 // connect
 proto.connect = function () {
     var that = this;
-    var sock = that._sock =
+    var sock = that.socket =
         new net.Socket();
     var opts = that._opts;
 

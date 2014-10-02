@@ -1,3 +1,3 @@
 module.exports = {
-    Client: require("./client.js"),
+    Client: require("./client"),
 }

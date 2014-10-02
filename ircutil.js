@@ -89,13 +89,15 @@ var handlers = module.exports.handlers = {
 
         // login successful
         this.emit("login");
-
-        // successfully logged in
-        // TODO set a login flag to true
     },
     "NICK": function (res) {
         var who = new User(res.prefix);
         var to = res.args;
+
+        // our own nickname changed
+        // thus update
+        if (who.nick === this._opts.nick)
+            this._opts.nick = to;
 
         // change nick in all channels
         this.channels.each(function (chan) {
