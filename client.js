@@ -5,17 +5,17 @@ var ircutil = require("./ircutil");
 var list = require("./lists");
 
 // handler the send buffer
-var workerSend = function (args) {
-    var buf = args.buf;
+var workerSend = function (handle) {
+    var buf = handle.buf;
     if (buf.length > 0) {
         var cmd = buf.shift();
-        args.send(cmd);
+        handle.send(cmd);
 
-        args.delay = (args.delay < 1000) ?
-            args.delay+250 : args.delay;
+        handle.delay = (handle.delay < 1000) ?
+            handle.delay+250 : handle.delay;
 
-        setTimeout(workerSend, args.delay, args);
-    } else { args.delay = 0; }
+        setTimeout(workerSend, handle.delay, handle);
+    } else { handle.delay = 0; }
 }
 
 // client constructor
@@ -27,7 +27,7 @@ var Client = function (opts) {
 
     // configuration
     var defs = this._opts = {
-        host: "chat.freenode.net",
+        server: "chat.freenode.net",
         port: 6667,
         pass: "",
         nick: "defnick",
@@ -56,6 +56,11 @@ var Client = function (opts) {
                 this.cmd("NICK "+v);
             },
         },
+        server: {
+            get: function () {
+                return this._opts.server;
+            },
+        },
     });
 
     // debug flag
@@ -65,7 +70,7 @@ var Client = function (opts) {
     this._caps = {};
 
     // buffer for the worker
-    var bufSend = {
+    var handleSend = {
         buf: [],
         delay: 0,
         send: function (data) {
@@ -76,14 +81,14 @@ var Client = function (opts) {
     this.cmd = function (data, dobuf) {
         // buffering flag set?
         if (dobuf) {
-            bufSend.buf.push(data);
-            if (bufSend.delay === 0) {
-                workerSend(bufSend);
+            handleSend.buf.push(data);
+            if (handleSend.delay === 0) {
+                workerSend(handleSend);
             }
             return that;
         } else {
             // don't buffer...
-            bufSend.send(data);
+            handleSend.send(data);
             return that;
         }
     };
@@ -93,9 +98,29 @@ var Client = function (opts) {
     
     // handlers 
     this.on("raw", function (res) {
-        this.log("<-- "+res.line);
+        that.log("<-- "+res.line);
         if (ircutil.handlers[res.type])
-            ircutil.handlers[res.type].call(this, res);
+            ircutil.handlers[res.type].call(that, res);
+    });
+
+    // received pong, send ping
+    var timeout;
+    this.on("pong", function(args) {
+        // kill timeout if set
+        if (timeout) clearTimeout(timeout);
+
+        // ping again after 5s
+        setTimeout(function () {
+            that.cmd("PING :"+that.server);
+        }, 5000);
+
+        // if no ping received within 
+        // 10s drop connection
+        timeout = setTimeout(function () {
+            // just exit
+            // TODO reconnect automatically
+            process.exit();
+        }, 10000);
     });
 };
 util.inherits(Client, events.EventEmitter);
@@ -157,7 +182,7 @@ proto.connect = function () {
     that.log("connecting...");
     sock.connect(
             opts.port, 
-            opts.host);
+            opts.server);
 
     // event handler for "connect" and "data"
     sock.on("connect", function () {

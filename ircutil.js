@@ -54,38 +54,27 @@ var User = function (userstring) {
     }
 };
 
-var workerPing = function (that) {
-    var tmout = 15*1000;
-    clearTimeout(that.timeout);
-    setTimeout(function () {
-        that.cmd("PING :"+
-                that._opts.host);
-        that.timeout = setTimeout(function () {
-            process.exit();
-        }, tmout);
-    }, tmout);
-};
-
+// handlers for the server responses
+// every function executed client scope 
 var handlers = module.exports.handlers = {
     "PONG": function (res) {
-        var that = this;
-        clearTimeout(that.timeout);
-        workerPing(that);
+        this.emit("pong", res.args);
     },
     "PING": function (res) {
         // auto-respond to PING requests
         this.cmd("PONG :"+res.args);
     },
     "433": function (res) {
-        // nickname already taken, append underscore
+        // nickname already taken
+        // append underscore
         this.nick += "_";
     },
     "251": function (res) {
         // request multi prefix
         this.cmd("CAP REQ :multi-prefix");
 
-        // start connection watchdog
-        workerPing(this);
+        // send initial ping request
+        this.cmd("PING :"+this.server);
 
         // login successful
         this.emit("login");
