@@ -2,7 +2,7 @@ var util = require("util");
 var net = require("net");
 var events = require("events");
 var ircutil = require("./ircutil");
-var list = require("./lists");
+var lists = require("./lists");
 
 // handler the send buffer
 var workerSend = function (handle) {
@@ -66,8 +66,8 @@ var Client = function (opts) {
     // debug flag
     this.dbg = false;
 
-    // member
-    this._caps = {};
+    // server supports
+    this.supports = {};
 
     // buffer for the worker
     var handleSend = {
@@ -93,8 +93,9 @@ var Client = function (opts) {
         }
     };
 
-    // channel list
-    this.channels = Object.create(list.Channels);
+    // channel and user lists
+    this.channels = lists.Channels.call(that);
+    this.users = lists.Users.call(that);
     
     // handlers 
     this.on("raw", function (res) {
@@ -109,18 +110,18 @@ var Client = function (opts) {
         // kill timeout if set
         if (timeout) clearTimeout(timeout);
 
-        // ping again after 5s
+        // ping again after 1m
         setTimeout(function () {
             that.cmd("PING :"+that.server);
-        }, 5000);
+        }, 60000);
 
         // if no ping received within 
-        // 10s drop connection
+        // 1m10s drop connection
         timeout = setTimeout(function () {
             // just exit
             // TODO reconnect automatically
             process.exit();
-        }, 10000);
+        }, 70000);
     });
 };
 util.inherits(Client, events.EventEmitter);
@@ -152,12 +153,8 @@ proto.say = function (target, msg) {
     return this;
 };
 proto.join = function (chan, rejoin) {
-    this
-        .cmd("JOIN "+chan)
-        .channels.add(chan, this);
-    this.channels[chan].rejoin =
-        (typeof rejoin === "undefined") ?
-        true : rejoin;
+    this.cmd("JOIN "+chan)
+        .channels.add(chan, this, rejoin);
 
     return this;
 };

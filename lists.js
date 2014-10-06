@@ -1,120 +1,93 @@
-function charSwitch(arr1, arr2, elem) {
-    var index = arr1.indexOf(elem);
-    return arr2[index];
-}
-var prefixToMode = function (v, i, arr) {
-    arr[i] = charSwitch(this, this.mode, v);
-}
-var modeToPrefix = function (v, i, arr) {
-    arr[i] = charSwitch(this.mode, this, v);
-}
+// Channel object
+var Channel = function (irc, name, rejoin) {
+    var that = this;
+    this.name = name;
+    this.rejoin = rejoin;
 
-var Channel = function (name, that) {
-    this._that = that;
-    this._name = name;
+    listNicks = [];
+    listModes = {};
+    irc.supports.prefixmode.forEach(function (mode) {
+        listModes[mode] = [];
+    });
 
-    this._nicks = {};
-};
-Channel.prototype = {
-    // rejoin on kick
-    rejoin: true,
-    // nicklist functions
-    add: function (arg) {
-        var prefix = 
-            this._that._caps.prefix;
-        var mode = prefix.mode;
-
-        // prefix regex
-        var repref = "["+prefix.join("")+"]*";
-        var re = new RegExp("^("+repref+")(.+)");
-
-        if (typeof arg === "string") {
-            this._nicks[arg] = []; 
-        } else if (Array.isArray(arg)) {
-            for (var x = 0; x < arg.length; x++) {
-                var item = arg[x].match(re);
-
-                var prefs = item[1].split("");
-                prefs.forEach(prefixToMode,
-                        prefix);
-
-                this._nicks[item[2]] =
-                    prefs;
-            }
-        }
-    },
-    del: function (arg) {
-        delete this._nicks[arg];
-    },
-    change: function(from, to) {
-        var old = this._nicks[from];
-        delete this._nicks[from];
-        this._nicks[to] = old;
-    },
-    mode: function (what, who) {
-        var mode = what.split("");
-        var modes = this._nicks[who];
-        var i = modes.indexOf(mode[1]);
-
-        if (mode[0] === "+" && i === -1) {
-            // add new mode and sort
-            modes.push(mode[1]);
-            modes.sort();
-        } else if (i !== -1) {
-            modes = modes.filter(function (v) {
-                if (v !== mode[1])
-                    return v;
+    this.nickAdd = function (nick) {
+        var prefixes = irc.supports.modeprefix.join("");
+        var prefixSplit = nick.match("(["+prefixes+"]*)(.*)");
+        var split = {
+            nick: prefixSplit[2],
+            prefixes: prefixSplit[1].split(""),
+        };
+        if (split.prefixes.length > 0) {
+            split.prefixes.forEach(function (prefix) {
+                var i = irc.supports.modeprefix.indexOf(prefix);
+                var mode = irc.supports.prefixmode[i]
+                listModes[mode].push(prefixSplit[2]);
             });
         }
-        this._nicks[who] = modes;
-    },
-    purge: function () {
-        this._nicks = {};
-    },
-    nicklist: function () {
-        var list = [];
-        for (nick in this._nicks) {
-            var mode = this._nicks[nick][0];
-            if (typeof mode === "string") {
-                var prefixes = 
-                    this._that._caps.prefixes;
-                var i = 
-                    prefixes.mode.indexOf(mode);
-                mode = mode.replace(
-                        prefixes.mode[i],
-                        prefixes[i]);
-            } else { mode = ""; }
-            list.push(mode+nick);
-        }
-        return list;
-    },
-    // irc functions
-    say: function (msg) {
-        this._that.say(this._name, msg);
-        return this;
-    },
-    part: function (msg) {
-        this._that.part(this._name, msg);
-        return this;
-    },
-}
+        listNicks.push(split[2]);
+    };
 
-var Channels = {
-    add: function (name, that) {
-        this[name] = new Channel(name, that);
-    },
-    del: function (name) {
-        delete this[name];
-    },
-    each: function (func) {
-        var chans = Object.keys(this);
-        chans.forEach(function (chan) {
-            if (typeof func === "function")
-                func(this[chan]);
-        }, this);
-    },
-    list: function () {
-        return Object.keys(this);
-    }
+    // send msg to this channel
+    this.say = function (msg) {
+        irc.say(that.name, msg);
+    };
+};
+
+// Builds a ChannelQuery object
+var Channels = function () {
+    var that = this;
+    var channels = [];
+
+    // channel query function
+    // TODO cache channel queries
+    var query = function (name) {
+        var channel;
+        channels.every(function (v) {
+            if (v.name === name) {
+                channel = v;
+                return false;
+            }
+            return true;
+        });
+        return channel;
+    };
+    // add channel to the list
+    query.add = function (name, rejoin) {
+        rejoin = (rejoin === undefined) ?
+            true : Boolean(rejoin);
+        var chan = new Channel(that, name, rejoin);
+        channels.push(chan);
+    };
+    // delete channel from the list
+    query.del = function (chan) {
+
+    };
+    // execute for each channel
+    query.each = function (callback) {
+
+    };
+
+    // return the ChannelQuery
+    return query;
 };
 module.exports.Channels = Channels;
+
+var Users = function () {
+    var users = [];
+
+    var query = function (name) {
+        var user;
+        users.every(function (v) {
+            if (v.name === name) {
+                channel = v;
+                return false;
+            }
+            return true;
+        });
+        return channel;
+    }; 
+
+    // return UserQuery
+    return query;
+};
+module.exports.Users = Users;

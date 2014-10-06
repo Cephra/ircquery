@@ -1,4 +1,6 @@
-var res = function (line) {
+// parse irc server responses into an
+// object we can work with
+module.exports.res = function (line) {
     var response = {};
     response.line = line;
 
@@ -37,6 +39,9 @@ var res = function (line) {
 
     return response;
 };
+
+// parse masked irc user string
+// into an object representing a user
 var User = function (userstring) {
     this.raw = userstring;
     if (this.raw.indexOf("!") != -1) {
@@ -53,10 +58,11 @@ var User = function (userstring) {
         this.nick = this.raw;
     }
 };
+module.exports.User = User;
 
 // handlers for the server responses
 // every function executed client scope 
-var handlers = module.exports.handlers = {
+module.exports.handlers = {
     "PONG": function (res) {
         this.emit("pong", res.args);
     },
@@ -83,9 +89,9 @@ var handlers = module.exports.handlers = {
         var who = new User(res.prefix);
         var to = res.args;
 
-        // our own nickname changed
-        // thus update
-        if (who.nick === this._opts.nick)
+        // our nickname changed
+        // transparent update
+        if (who.nick === this.nick)
             this._opts.nick = to;
 
         // change nick in all channels
@@ -128,19 +134,18 @@ var handlers = module.exports.handlers = {
 
         // either remove channel or nick
         if (res.params[1] === this._opts.nick) {
-            var chan = this.channels[where];
+            var chan = this.channels(where);
             if (chan.rejoin) {
-                chan.purge();
                 this.join(where, true);
             } else {
-                this.channels(where);
+                //this.channels(where);
             }
             this.emit("kickfrom",
                     where,
                     who,
                     res.args);
         } else {
-            this.channels[where].
+            this.channels(where).
                 del(res.params[1]);
             this.emit("kickin",
                     where, 
@@ -153,7 +158,7 @@ var handlers = module.exports.handlers = {
         var who = new User(res.prefix);
         var where = res.params[0];
         
-        if (who.nick === this._opts.nick) {
+        if (who.nick === this.nick) {
             this.log("added channel: "+
                     res.params[0]);
 
@@ -176,7 +181,7 @@ var handlers = module.exports.handlers = {
 
                 // list or nick mode?
                 var whatmode = this.
-                    _caps.prefix.mode
+                    supports.modes
                     .indexOf(res.params[1][1]);
 
                 if (whatmode != -1) {
@@ -194,10 +199,9 @@ var handlers = module.exports.handlers = {
     "353": function (res) {
         var chan = res.params[2];
         var names = res.args.split(" ");
-
-        // receiving name, add them to channel
-        this.log("receiving names in "+chan);
-        this.channels[chan].add(names);
+        names.forEach(function (name) {
+            this.channels(chan).nickAdd(name);
+        }, this);
     },
     "324": function (res) {
         var chan = this.channels[res.params[1]];
@@ -246,7 +250,7 @@ var handlers = module.exports.handlers = {
                     break;
                 case "CHANMODES":
                     var modes = value.split(",");
-                    this._caps.chanmodes = {
+                    this.supports.chanmodes = {
                         A: modes[0],
                         B: modes[1],
                         C: modes[2],
@@ -257,9 +261,9 @@ var handlers = module.exports.handlers = {
                     var re = /\((.+)\)(.+)/;
                     var prefs = value.split(re);
 
-                    this._caps.prefix = 
+                    this.supports.modeprefix = 
                         prefs[2].split("");
-                    this._caps.prefix.mode = 
+                    this.supports.prefixmode = 
                         prefs[1].split("");
                     break;
                 }
@@ -267,7 +271,3 @@ var handlers = module.exports.handlers = {
         }, this);
     },
 };
-
-// export the submodules
-module.exports.res = res;
-module.exports.User = User;
