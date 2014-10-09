@@ -89,39 +89,35 @@ module.exports.handlers = {
         var who = new User(res.prefix);
         var to = res.args;
 
-        // our nickname changed
+        // own nickname changed
         // transparent update
-        if (who.nick === this.nick)
+        if (who.nick === this.nick) {
             this._opts.nick = to;
+            return;
+        }
 
-        // change nick in all channels
-        this.channels.each(function (chan) {
-            chan.change(who.nick, to);
-        });
+        // emit nick change event
+        this.emit(nick, who.nick, to);
     },
     "QUIT": function (res) {
         var who = new User(res.prefix);
 
         // remove nick from all channels
-        this.channels.each(function (chan) {
-            chan.del(who.nick);
-        })
+        this.channel.each(function (v) {
+            this.emit(v.name+":nickdel", who.nick);
+        }, this);
         this.emit("quit", who, res.args);
     },
     "PART": function (res) {
         var who = new User(res.prefix);
         var where = res.params[0];
         
-        if (who.nick === this._opts.nick) {
-            // remove channel from list
-            this.channels.del(where);
+        if (who.nick === this.nick) {
+            //this.channel.del(where);
             this.emit("partfrom",
                     where,
                     res.args);
         } else {
-            // remove user from channel
-            this.channels[where].
-                del(who.nick);
             this.emit("partin",
                     where, 
                     who, 
@@ -133,20 +129,18 @@ module.exports.handlers = {
         var where = res.params[0];
 
         // either remove channel or nick
-        if (res.params[1] === this._opts.nick) {
-            var chan = this.channels(where);
+        if (res.params[1] === this.nick) {
+            var chan = this.channel(where);
             if (chan.rejoin) {
                 this.join(where, true);
             } else {
-                //this.channels(where);
+                //this.channel(where);
             }
             this.emit("kickfrom",
                     where,
                     who,
                     res.args);
         } else {
-            this.channels(where).
-                del(res.params[1]);
             this.emit("kickin",
                     where, 
                     who,
@@ -159,13 +153,11 @@ module.exports.handlers = {
         var where = res.params[0];
         
         if (who.nick === this.nick) {
-            this.log("added channel: "+
-                    res.params[0]);
+            this.log("successfully joined "+where);
+            this.cmd("MODE "+where);
 
-            this.emit("jointo",where);
+            this.emit("jointo", where);
         } else {
-            this.channels[where].
-                add(who.nick);
             this.emit("joinin", where, who);
         }
     },
@@ -173,24 +165,23 @@ module.exports.handlers = {
         var who = new User(res.prefix);
 
         if (res.params[0][0] === "#") {
-            var chan = 
-                this.channels[res.params[0]];
+            var chan = res.params[0];
             if (res.params[2]) {
                 // changed on who?
                 var user = new User(res.params[2]);
 
                 // list or nick mode?
-                var whatmode = this.
-                    supports.modes
-                    .indexOf(res.params[1][1]);
-
+                var whatmode = 
+                    this.supports.prefixmode.indexOf(
+                            res.params[1][1]);
                 if (whatmode != -1) {
-                    // TODO add mode to nick
+                    // TODO nick flag
                 } else {
-                    this.log("list mode changed");
+                    // TODO channel list flag
                 }
             } else {
-                this.log("channel mode changed");
+                this.emit(chan+":flags",
+                        res.params[1]);
             }
         } else {
             this.log("user mode changed");
@@ -198,22 +189,22 @@ module.exports.handlers = {
     },
     "353": function (res) {
         var chan = res.params[2];
-        var names = res.args.split(" ");
-        names.forEach(function (name) {
-            this.channels(chan).nickAdd(name);
+        var nicks = res.args.split(" ");
+        nicks.forEach(function (nick) {
+            this.emit("names", chan, nick);
         }, this);
     },
     "324": function (res) {
-        var chan = this.channels[res.params[1]];
-        if (typeof chan !== "undefined")
-            chan._flags = 
-                res.params[2].replace("+","");
+        var chan = res.params[1];
+        var flags = res.params[2];
+
+        this.emit(chan+":flags", flags);
     },
     "329": function (res) {
-        var chan = this.channels[res.params[1]];
-        if (typeof chan !== "undefined")
-            chan._creation =
-                parseInt(res.params[2]);
+        var chan = res.params[1];
+        var when = parseInt(res.params[2]);
+
+        this.emit(chan+":created", when);
     },
     "NOTICE": function (res) {
         var who = new User(res.prefix);

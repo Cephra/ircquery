@@ -77,7 +77,7 @@ var Client = function (opts) {
             that.log("--> "+data);
             that.socket.write(data+"\r\n");
         },
-    }
+    };
     this.cmd = function (data, dobuf) {
         // buffering flag set?
         if (dobuf) {
@@ -94,21 +94,22 @@ var Client = function (opts) {
     };
 
     // channel and user lists
-    this.channels = lists.Channels.call(that);
-    this.users = lists.Users.call(that);
+    this.channel = lists.Channels.call(that);
+    // this.user = lists.Users.call(that);
     
     // handlers 
     this.on("raw", function (res) {
         that.log("<-- "+res.line);
-        if (ircutil.handlers[res.type])
+        if (ircutil.handlers[res.type]) {
             ircutil.handlers[res.type].call(that, res);
+        }
     });
 
     // received pong, send ping
     var timeout;
     this.on("pong", function(args) {
         // kill timeout if set
-        if (timeout) clearTimeout(timeout);
+        if (timeout) { clearTimeout(timeout) };
 
         // ping again after 1m
         setTimeout(function () {
@@ -140,8 +141,9 @@ proto.log = function (arg) {
     }
 }
 
+// irc functions
 proto.say = function (target, msg) {
-    if (typeof msg === "undefined")
+    if (msg === undefined)
         return this;
     msg.toString().split(/\r?\n/)
         .filter(function (v) {
@@ -154,14 +156,15 @@ proto.say = function (target, msg) {
 };
 proto.join = function (chan, rejoin) {
     this.cmd("JOIN "+chan)
-        .channels.add(chan, this, rejoin);
+        .channel.add(chan, this, rejoin);
 
     return this;
 };
 proto.part = function (chan, msg) {
-    msg = (msg) ? " :"+msg : "";
-    this.cmd("PART "+chan+msg);
-
+    if (this.channel(chan)) {
+        msg = (msg) ? " :"+msg : "";
+        this.cmd("PART "+chan+msg);
+    }
     return this;
 };
 // connect
