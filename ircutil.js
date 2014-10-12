@@ -102,10 +102,7 @@ module.exports.handlers = {
     "QUIT": function (res) {
         var who = new User(res.prefix);
 
-        // remove nick from all channels
-        this.channel.each(function (v) {
-            this.emit(v.name+":nickdel", who.nick);
-        }, this);
+        // throw quit event
         this.emit("quit", who, res.args);
     },
     "PART": function (res) {
@@ -165,46 +162,34 @@ module.exports.handlers = {
         var who = new User(res.prefix);
 
         if (res.params[0][0] === "#") {
-            var chan = res.params[0];
-            if (res.params[2]) {
-                // changed on who?
-                var user = new User(res.params[2]);
+            var where = res.params[0];
+            var mode = res.params[1];
+            var arg = (res.params[2]) ? 
+                undefined : res.params[2];
 
-                // list or nick mode?
-                var whatmode = 
-                    this.supports.prefixmode.indexOf(
-                            res.params[1][1]);
-                if (whatmode != -1) {
-                    // TODO nick flag
-                } else {
-                    // TODO channel list flag
-                }
-            } else {
-                this.emit(chan+":flags",
-                        res.params[1]);
-            }
+            this.emit("chanmode", where, who, mode, arg);
         } else {
-            this.log("user mode changed");
+            //this.emit("usermode");
         }
     },
     "353": function (res) {
-        var chan = res.params[2];
+        var where = res.params[2];
         var nicks = res.args.split(" ");
         nicks.forEach(function (nick) {
-            this.emit("names", chan, nick);
+            this.emit("names", where, nick);
         }, this);
     },
     "324": function (res) {
-        var chan = res.params[1];
+        var where = res.params[1];
         var flags = res.params[2];
 
-        this.emit(chan+":flags", flags);
+        this.emit("chanflags", where, flags);
     },
     "329": function (res) {
         var chan = res.params[1];
-        var when = parseInt(res.params[2]);
+        var timestamp = parseInt(res.params[2]);
 
-        this.emit(chan+":created", when);
+        this.emit("chancreated", chan, timestamp);
     },
     "NOTICE": function (res) {
         var who = new User(res.prefix);

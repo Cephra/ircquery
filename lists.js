@@ -6,7 +6,7 @@ var Channel = function (irc, name, rejoin) {
 
     // flags and creation date
     var arrFlags = [];
-    var dateCreation;
+    var dateCreated;
 
     // per mode nick list
     var listNicks = {};
@@ -15,8 +15,9 @@ var Channel = function (irc, name, rejoin) {
         listNicks[mode] = [];
     });
 
-    var nickAddInit = function (where, nick) {
-        if (where !== name) { return; }
+
+    var chanNames = function (where, nick) {
+        if (where !== name) return;
 
         var prefixes = irc.supports.modeprefix.join("");
         var prefixSplit = nick.match("(["+prefixes+"]*)(.*)");
@@ -37,14 +38,12 @@ var Channel = function (irc, name, rejoin) {
 
         listNicks[""].push(split.nick);
     };
-    irc.on("names", nickAddInit);
 
     var nickAdd = function (where, nick) {
-        if (where !== name) { return; }
+        if (where !== name) return;
+
         listNicks[""].push(nick.nick);
     };
-    irc.on("joinin", nickAdd);
-
     var nickDel = function () {
         var l = Object.keys(arguments).length;
         var where, nick;
@@ -61,9 +60,10 @@ var Channel = function (irc, name, rejoin) {
             where = arguments[1];
             nick = arguments[2];
         }
-        if (where !== name) { return; }
+        if (where !== name) return;
 
-        // search list for nick and delete
+        // search lists for nick 
+        // then delete nick 
         for (key in listNicks) {
             var i = listNicks[key].indexOf(nick);
             if (i != -1) {
@@ -71,40 +71,72 @@ var Channel = function (irc, name, rejoin) {
             }
         }
     };
-    irc.on("partin", nickDel);
-    irc.on("kickin", nickDel);
-    irc.on("quit", nickDel);
 
-    var nickCh = function (from, to) {
+    var nickCh = function (where, from, to) {
         for (key in listNicks) {
             var i = listNicks[key].indexOf(from);
             listNicks[key][i] = to;
         }
-    });
-    irc.on("nick", nickCh);
+    };
+    var chanMode = function (where, who, mode, arg) {
+        if (where !== name) return;
 
-    irc.on(name+":flags", function (flags, target) {
-        var op = flags.slice(0,1);
-        var flags = flags.slice(1).split("");
-        flags.forEach(function (v) {
-            if (op === "+") {
-                arrFlags.push(v);
-            } else {
-                var i = arrFlags.indexOf(v);
-                arrFlags.splice(i,1);
-            }
-        });
-    });
+        //var op = flags.slice(0,1);
+        //var flags = flags.slice(1);
 
-    var chanRemove = function handler(where) {
-        // TODO delete channel specific event handlers
+        //flags.forEach(function (v) {
+        //    if (op === "+") {
+        //        arrFlags.push(v);
+        //    } else {
+        //        var i = arrFlags.indexOf(v);
+        //        arrFlags.splice(i,1);
+        //    }
+        //});
     };
 
+    var chanFlags = function (where, flags) {
+        if (where !== name) return;
 
-    //// channel creation date
-    //irc.once(name+":created", function (when) {
-    //    dateCreation = new Date(when*1000);
-    //});
+        // fill the flags in
+        arrFlags = flags.slice(1).split("");
+    };
+    var chanCreated = function (where, timestamp) {
+        if (where !== name) return;
+
+        dateCreated = new Date(timestamp*1000);
+        console.dir(dateCreated);
+    };
+
+    var chanInit = function (where) {
+        if (where !== name) return;
+
+        // channel information
+        irc.on("chanflags", chanFlags);
+        irc.on("chancreated", chanCreated);
+
+        // nicklist reply
+        irc.on("names", chanNames);
+
+        // nick insertion
+        irc.on("joinin", nickAdd);
+
+        // nick removal
+        irc.on("partin", nickDel);
+        irc.on("kickin", nickDel);
+        irc.on("quit", nickDel);
+
+        // changes
+        irc.on("nick", nickCh);
+        irc.on("chanmode", chanMode);
+
+        // remove handler
+        this.log(name+" successfully initialized.");
+        this.removeListener("jointo", chanInit);
+    };
+    irc.on("jointo", chanInit);
+    var chanDisable = function (where) {
+        
+    };
 
     // send msg to this channel
     this.say = function (msg) {
