@@ -110,7 +110,6 @@ module.exports.handlers = {
         var where = res.params[0];
         
         if (who.nick === this.nick) {
-            //this.channel.del(where);
             this.emit("partfrom",
                     where,
                     res.args);
@@ -130,8 +129,6 @@ module.exports.handlers = {
             var chan = this.channel(where);
             if (chan.rejoin) {
                 this.join(where, true);
-            } else {
-                //this.channel(where);
             }
             this.emit("kickfrom",
                     where,

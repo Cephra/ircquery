@@ -1,8 +1,19 @@
 // Channel object
 var Channel = function (irc, name, rejoin) {
     var that = this;
-    this.name = name;
-    this.rejoin = rejoin;
+
+    Object.defineProperties(this, {
+        "name": {
+            get: function () {
+                return name;
+            },
+        },
+        "rejoin": {
+            get: function () {
+                return rejoin;
+            },
+        },
+    });
 
     // flags and creation date
     var arrFlags = [];
@@ -104,7 +115,6 @@ var Channel = function (irc, name, rejoin) {
         if (where !== name) return;
 
         dateCreated = new Date(timestamp*1000);
-        console.dir(dateCreated);
     };
 
     var chanInit = function (where) {
@@ -134,9 +144,14 @@ var Channel = function (irc, name, rejoin) {
         this.removeListener("jointo", chanInit);
     };
     irc.on("jointo", chanInit);
+
     var chanDisable = function (where) {
         
     };
+    irc.on("partfrom", chanDisable);
+    if (!rejoin) {
+        irc.on("kickfrom", chanDisable);
+    }
 
     // send msg to this channel
     this.say = function (msg) {
