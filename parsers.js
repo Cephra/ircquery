@@ -1,6 +1,6 @@
 // parse irc server responses into an
 // object we can work with
-module.exports.res = function (line) {
+module.exports.split = function (line) {
     var response = {};
     response.line = line;
 
@@ -42,7 +42,7 @@ module.exports.res = function (line) {
 
 // parse masked irc user string
 // into an object representing a user
-var User = function (userstring) {
+var user = function (userstring) {
     this.raw = userstring;
     if (this.raw.indexOf("!") != -1) {
         var spltNick = this.raw.split("!");
@@ -58,11 +58,11 @@ var User = function (userstring) {
         this.nick = this.raw;
     }
 };
-module.exports.User = User;
+module.exports.user = user;
 
 // handlers for the server responses
 // every function executed client scope 
-module.exports.handlers = {
+module.exports.response = {
     "PONG": function (res) {
         this.emit("pong", res.args);
     },
@@ -73,6 +73,7 @@ module.exports.handlers = {
     "433": function (res) {
         // nickname already taken
         // append underscore
+
         this.nick += "_";
     },
     "251": function (res) {

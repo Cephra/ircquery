@@ -1,8 +1,7 @@
 var util = require("util");
 var net = require("net");
 var events = require("events");
-var ircutil = require("./ircutil");
-var lists = require("./lists");
+var parsers = require("./parsers");
 
 // handler the send buffer
 var workerSend = function (handle) {
@@ -70,7 +69,7 @@ var Client = function (opts) {
     this.supports = {};
 
     // buffer for the worker
-    var handleSend = {
+    var handlerSend = {
         buf: [],
         delay: 0,
         send: function (data) {
@@ -81,27 +80,27 @@ var Client = function (opts) {
     this.cmd = function (data, dobuf) {
         // buffering flag set?
         if (dobuf) {
-            handleSend.buf.push(data);
-            if (handleSend.delay === 0) {
-                workerSend(handleSend);
+            handlerSend.buf.push(data);
+            if (handlerSend.delay === 0) {
+                workerSend(handlerSend);
             }
             return that;
         } else {
             // don't buffer...
-            handleSend.send(data);
+            handlerSend.send(data);
             return that;
         }
     };
 
     // channel and user lists
-    this.channel = lists.Channels.call(that);
+    // this.channel = lists.Channels.call(that);
     // this.user = lists.Users.call(that);
     
     // handlers 
     this.on("raw", function (res) {
         that.log("<-- "+res.line);
-        if (ircutil.handlers[res.type]) {
-            ircutil.handlers[res.type].call(that, res);
+        if (parsers.response[res.type]) {
+            parsers.response[res.type].call(that, res);
         }
     });
 
@@ -155,8 +154,8 @@ proto.say = function (target, msg) {
     return this;
 };
 proto.join = function (chan, rejoin) {
-    this.cmd("JOIN "+chan)
-        .channel.add(chan, this, rejoin);
+    this.cmd("JOIN "+chan);
+    this.emit("joining", chan);
 
     return this;
 };
@@ -167,7 +166,6 @@ proto.part = function (chan, msg) {
     }
     return this;
 };
-// connect
 proto.connect = function () {
     var that = this;
     var sock = that.socket =
@@ -184,16 +182,19 @@ proto.connect = function () {
             opts.port, 
             opts.server);
 
-    // event handler for "connect" and "data"
+    // event handler for "connect"
     sock.on("connect", function () {
         // logging in
         var pass = opts.pass;
         if (pass.length > 0)
             that.cmd("PASS "+pass);
+
         that.cmd("NICK "+opts.nick);
-        that.cmd("USER "+
-                opts.user+" 0 * :"+opts.desc);
+
+        that.cmd("USER "+opts.user+
+                " 0 * :"+opts.desc);
     });
+
     // line buffering on data receive
     var buff = "";
     sock.on("data", function (chunk) {
@@ -203,7 +204,7 @@ proto.connect = function () {
         buff = lines.pop();
 
         lines.forEach(function (line) {
-            var res = ircutil.res(line);
+            var res = parsers.split(line);
             that.emit("raw", res);
         });
     });
