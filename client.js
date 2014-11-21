@@ -1,3 +1,5 @@
+"use strict";
+
 var util = require("util");
 var net = require("net");
 var events = require("events");
@@ -34,7 +36,7 @@ var Client = function (opts) {
         desc: "defdesc",
     };
     if (typeof opts === "object") {
-        for (key in defs) {
+        for (var key in defs) {
             if (opts[key] != undefined) {
                 defs[key] = opts[key];
             }
@@ -42,10 +44,10 @@ var Client = function (opts) {
     }
 
     // getter & setter
-    Object.defineProperties(this, {
+    Object.defineProperties(that, {
         nick: {
             get: function () {
-                return this._opts.nick;
+                return that._opts.nick;
             },
             set: function (v) {
                 // nick is automatically changed
@@ -57,7 +59,7 @@ var Client = function (opts) {
         },
         server: {
             get: function () {
-                return this._opts.server;
+                return that._opts.server;
             },
         },
     });
@@ -78,8 +80,8 @@ var Client = function (opts) {
         },
     };
     this.cmd = function (data, dobuf) {
-        // buffering flag set?
         if (dobuf) {
+            // buffering
             handlerSend.buf.push(data);
             if (handlerSend.delay === 0) {
                 workerSend(handlerSend);
@@ -92,10 +94,6 @@ var Client = function (opts) {
         }
     };
 
-    // channel and user lists
-    // this.channel = lists.Channels.call(that);
-    // this.user = lists.Users.call(that);
-    
     // handlers 
     this.on("raw", function (res) {
         that.log("<-- "+res.line);
@@ -107,40 +105,34 @@ var Client = function (opts) {
     // received pong, send ping
     var timeout;
     this.on("pong", function(args) {
+
         // kill timeout if set
         if (timeout) { clearTimeout(timeout) };
 
-        // ping again after 1m
+        // ping every minute
+        // timeout after 5 seconds
         setTimeout(function () {
             that.cmd("PING :"+that.server);
-        }, 60000);
 
-        // if no ping received within 
-        // 1m10s drop connection
-        timeout = setTimeout(function () {
-            // just exit
-            // TODO reconnect automatically
-            process.exit();
-        }, 70000);
+            timeout = setTimeout(function () {
+                // TODO make the client reconnect
+                process.exit();
+            }, 5000);
+        }, 60000);
     });
 };
 util.inherits(Client, events.EventEmitter);
 
-// shorthand
 var proto = Client.prototype;
-
-// logging functions
 proto.log = function (arg) {
     if (this.dbg) {
         var date = new Date();
         console.log("["+
                 date.toDateString()+" "+
-                date.toLocaleTimeString()+"]");
-        console.log(arg);
+                date.toLocaleTimeString()+"] "+arg);
     }
 }
 
-// irc functions
 proto.say = function (target, msg) {
     if (msg === undefined)
         return this;

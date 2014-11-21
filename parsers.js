@@ -1,3 +1,5 @@
+"use strict";
+
 // parse irc server responses into an
 // object we can work with
 module.exports.split = function (line) {
@@ -43,20 +45,24 @@ module.exports.split = function (line) {
 // parse masked irc user string
 // into an object representing a user
 var user = function (userstring) {
-    this.raw = userstring;
-    if (this.raw.indexOf("!") != -1) {
-        var spltNick = this.raw.split("!");
+    var obj = {}
+
+    obj.raw = userstring;
+    if (obj.raw.indexOf("!") != -1) {
+        var spltNick = obj.raw.split("!");
         var spltHost = spltNick[1].split("@");
         
         // set nick
-        this.nick = spltNick[0];
+        obj.nick = spltNick[0];
 
         // and user@host
-        this.user = spltHost[0];
-        this.host = spltHost[1];
+        obj.user = spltHost[0];
+        obj.host = spltHost[1];
     } else {
-        this.nick = this.raw;
+        obj.nick = obj.raw;
     }
+
+    return obj;
 };
 module.exports.user = user;
 
@@ -80,14 +86,14 @@ module.exports.response = {
         // request multi prefix
         this.cmd("CAP REQ :multi-prefix");
 
-        // send initial ping request
+        // ignite the ping pong
         this.cmd("PING :"+this.server);
 
         // login successful
         this.emit("login");
     },
     "NICK": function (res) {
-        var who = new User(res.prefix);
+        var who = user(res.prefix);
         var to = res.args;
 
         // own nickname changed
@@ -101,13 +107,13 @@ module.exports.response = {
         this.emit(nick, who.nick, to);
     },
     "QUIT": function (res) {
-        var who = new User(res.prefix);
+        var who = user(res.prefix);
 
         // throw quit event
         this.emit("quit", who, res.args);
     },
     "PART": function (res) {
-        var who = new User(res.prefix);
+        var who = user(res.prefix);
         var where = res.params[0];
         
         if (who.nick === this.nick) {
@@ -122,7 +128,7 @@ module.exports.response = {
         }
     },
     "KICK": function (res) {
-        var who = new User(res.prefix);
+        var who = user(res.prefix);
         var where = res.params[0];
 
         // either remove channel or nick
@@ -144,20 +150,18 @@ module.exports.response = {
         }
     },
     "JOIN": function (res) {
-        var who = new User(res.prefix);
+        var who = user(res.prefix);
         var where = res.params[0];
         
         if (who.nick === this.nick) {
-            this.log("successfully joined "+where);
             this.cmd("MODE "+where);
-
-            this.emit("jointo", where);
+            this.emit("joined", where);
         } else {
-            this.emit("joinin", where, who);
+            this.emit("userjoined", where, who);
         }
     },
     "MODE": function (res) {
-        var who = new User(res.prefix);
+        var who = user(res.prefix);
 
         if (res.params[0][0] === "#") {
             var where = res.params[0];
@@ -167,7 +171,7 @@ module.exports.response = {
 
             this.emit("chanmode", where, who, mode, arg);
         } else {
-            //this.emit("usermode");
+            this.emit("usermode");
         }
     },
     "353": function (res) {
@@ -190,7 +194,7 @@ module.exports.response = {
         this.emit("chancreated", chan, timestamp);
     },
     "NOTICE": function (res) {
-        var who = new User(res.prefix);
+        var who = user(res.prefix);
 
         this.emit("notice",
                 who,
@@ -198,7 +202,7 @@ module.exports.response = {
                 res.args);
     },
     "PRIVMSG": function (res) {
-        var who = new User(res.prefix);
+        var who = user(res.prefix);
         var where = res.params[0];
 
         if (where[0] === "#") {
