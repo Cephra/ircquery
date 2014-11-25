@@ -121,7 +121,8 @@ var Client = function (opts) {
             that.cmd("PING :"+that.server);
 
             timeout = setTimeout(function () {
-                // TODO make the client reconnect
+                // TODO make the client
+                // reconnect
                 process.exit();
             }, 5000);
         }, 60000);

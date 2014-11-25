@@ -99,12 +99,12 @@ module.exports.response = {
         // own nickname changed
         // transparent update
         if (who.nick === this.nick) {
-            this._opts.nick = to;
+            this.config.nick = to;
             return;
         }
 
         // emit nick change event
-        this.emit(nick, who.nick, to);
+        this.emit("nick", who.nick, to);
     },
     "QUIT": function (res) {
         var who = user(res.prefix);
