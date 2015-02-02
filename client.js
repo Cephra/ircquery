@@ -21,13 +21,15 @@ var workerSend = function (handle) {
 
 // client constructor
 var Client = function (opts) {
+    // Inherit from Event Emitter 
+    // so we can throw Events
     events.EventEmitter.call(this);
 
     // this to that
     var that = this;
 
-    // configuration
-    var defs = this._opts = {
+    // default configuration
+    var defs = {
         server: "chat.freenode.net",
         port: 6667,
         pass: "",
@@ -35,6 +37,7 @@ var Client = function (opts) {
         user: "defuser",
         desc: "defdesc",
     };
+    // overwriting defaults
     if (typeof opts === "object") {
         for (var key in defs) {
             if (opts[key] !== undefined) {
@@ -52,19 +55,23 @@ var Client = function (opts) {
         },
         nick: {
             get: function () {
-                return that._opts.nick;
+                return that.config.nick;
             },
             set: function (v) {
                 // nick is automatically changed
-                // when the server response is
-                // received
-                // this._opts.nick = v;
+                // when the corresponding 
+                // server response is received
                 this.cmd("NICK "+v);
             },
         },
         server: {
             get: function () {
-                return defs.server;
+                return that.config.server;
+            },
+        },
+        config: {
+            get: function () {
+                return defs;
             },
         },
     });
@@ -120,7 +127,8 @@ var Client = function (opts) {
             that.cmd("PING :"+that.server);
 
             timeout = setTimeout(function () {
-                // TODO make the client reconnect
+                // TODO make the client
+                // reconnect
                 process.exit();
             }, 5000);
         }, 60000);
@@ -167,7 +175,7 @@ proto.connect = function () {
     var that = this;
     var sock = that.socket =
         new net.Socket();
-    var opts = that._opts;
+    var config = that.config;
 
     // setup socket
     sock.setEncoding("utf8");
@@ -176,20 +184,20 @@ proto.connect = function () {
     // init connection
     that.log("connecting...");
     sock.connect(
-            opts.port, 
-            opts.server);
+            config.port, 
+            config.server);
 
     // event handler for "connect"
     sock.on("connect", function () {
         // logging in
-        var pass = opts.pass;
+        var pass = config.pass;
         if (pass.length > 0)
             that.cmd("PASS "+pass);
 
-        that.cmd("NICK "+opts.nick);
+        that.cmd("NICK "+config.nick);
 
-        that.cmd("USER "+opts.user+
-                " 0 * :"+opts.desc);
+        that.cmd("USER "+config.user+
+                " 0 * :"+config.desc);
     });
 
     // line buffering on data receive

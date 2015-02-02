@@ -1,4 +1,4 @@
 node-irc
 ========
 
-A node irc interface from scratch. Work in progress.
+Just a simple IRC abstraction framework for node.js.

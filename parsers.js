@@ -97,8 +97,8 @@ module.exports.response = {
         // own nickname changed
         // transparent update
         if (who.nick === this.nick) {
-            this._opts.nick = to;
-            return; // suppress
+            this.config.nick = to;
+            return;
         }
 
         // emit nick change event
