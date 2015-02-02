@@ -17,7 +17,7 @@ var workerSend = function (handle) {
 
         setTimeout(workerSend, handle.delay, handle);
     } else { handle.delay = 0; }
-}
+};
 
 // client constructor
 var Client = function (opts) {
@@ -37,7 +37,7 @@ var Client = function (opts) {
     };
     if (typeof opts === "object") {
         for (var key in defs) {
-            if (opts[key] != undefined) {
+            if (opts[key] !== undefined) {
                 defs[key] = opts[key];
             }
         }
@@ -45,6 +45,11 @@ var Client = function (opts) {
 
     // getter & setter
     Object.defineProperties(that, {
+        options: {
+            get: function () {
+                return defs;
+            },
+        },
         nick: {
             get: function () {
                 return that._opts.nick;
@@ -59,7 +64,7 @@ var Client = function (opts) {
         },
         server: {
             get: function () {
-                return that._opts.server;
+                return defs.server;
             },
         },
     });
@@ -107,7 +112,7 @@ var Client = function (opts) {
     this.on("pong", function(args) {
 
         // kill timeout if set
-        if (timeout) { clearTimeout(timeout) };
+        if (timeout) { clearTimeout(timeout); }
 
         // ping every minute
         // timeout after 5 seconds
@@ -131,7 +136,7 @@ proto.log = function (arg) {
                 date.toDateString()+" "+
                 date.toLocaleTimeString()+"] "+arg);
     }
-}
+};
 
 proto.say = function (target, msg) {
     if (msg === undefined)

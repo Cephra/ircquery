@@ -7,13 +7,11 @@ module.exports.split = function (line) {
     response.line = line;
 
     // split regex
-    var reLong = 
-        /^:([^\s]+)\s([^\s]+)\s(.+)$/;
-    var reShort = 
-        /^([^\s]+)\s:(.+)$/;
+    var reLong = /^:([^\s]+)\s([^\s]+)\s(.+)$/;
+    var reShort = /^([^\s]+)\s:(.+)$/;
 
     var _line;
-    if (_line = line.match(reLong)) {
+    if ((_line = line.match(reLong))) {
         response.type = _line[2];
         response.prefix = _line[1];
 
@@ -34,7 +32,7 @@ module.exports.split = function (line) {
         }
         response.params =
             response.params.split(" ");
-    } else if (_line = line.match(re2)) {
+    } else if ((_line = line.match(reShort))) {
         response.type = _line[1];
         response.args = _line[2];
     }
@@ -45,7 +43,7 @@ module.exports.split = function (line) {
 // parse masked irc user string
 // into an object representing a user
 var user = function (userstring) {
-    var obj = {}
+    var obj = {};
 
     obj.raw = userstring;
     if (obj.raw.indexOf("!") != -1) {
@@ -100,11 +98,11 @@ module.exports.response = {
         // transparent update
         if (who.nick === this.nick) {
             this._opts.nick = to;
-            return;
+            return; // suppress
         }
 
         // emit nick change event
-        this.emit(nick, who.nick, to);
+        this.emit("nick", who.nick, to);
     },
     "QUIT": function (res) {
         var who = user(res.prefix);
@@ -137,12 +135,12 @@ module.exports.response = {
             if (chan.rejoin) {
                 this.join(where, true);
             }
-            this.emit("kickfrom",
+            this.emit("kicked",
                     where,
                     who,
                     res.args);
         } else {
-            this.emit("kickin",
+            this.emit("userkicked",
                     where, 
                     who,
                     res.params[1],
@@ -191,7 +189,7 @@ module.exports.response = {
         var chan = res.params[1];
         var timestamp = parseInt(res.params[2]);
 
-        this.emit("chancreated", chan, timestamp);
+        this.emit("chantime", chan, timestamp);
     },
     "NOTICE": function (res) {
         var who = user(res.prefix);
@@ -220,7 +218,7 @@ module.exports.response = {
         var split = res.params.slice(1);
         split.forEach(function (v) {
             var match;
-            if (match = v.match(/([A-Z]+)=(.*)/)) {
+            if ((match = v.match(/([A-Z]+)=(.*)/))) {
                 var param = match[1];
                 var value = match[2];
                 switch (param) {
@@ -233,7 +231,7 @@ module.exports.response = {
                         B: modes[1],
                         C: modes[2],
                         D: modes[3],
-                    }
+                    };
                     break;
                 case "PREFIX":
                     var re = /\((.+)\)(.+)/;
