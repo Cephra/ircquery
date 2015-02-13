@@ -3,7 +3,7 @@
 var util = require("util");
 var net = require("net");
 var events = require("events");
-var parsers = require("./parsers");
+var handlers = require("./handlers");
 var ircutil = require("./ircutil");
 
 // handler the send buffer
@@ -110,8 +110,8 @@ var Client = function (opts) {
     // handlers 
     this.on("raw", function (res) {
         that.log("<-- "+res.line);
-        if (parsers.response[res.type]) {
-            parsers.response[res.type].call(that, res);
+        if (handlers.response[res.type]) {
+            handlers.response[res.type].call(that, res);
         }
     });
 
