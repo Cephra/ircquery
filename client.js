@@ -158,7 +158,7 @@ proto.say = function (target, msg) {
         }, this);
     return this;
 };
-proto.join = function (chan, rejoin) {
+proto.join = function (chan) {
     this.cmd("JOIN "+chan);
     this.emit("joining", chan);
 
