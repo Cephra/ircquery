@@ -4,6 +4,7 @@ var util = require("util");
 var net = require("net");
 var events = require("events");
 var parsers = require("./parsers");
+var ircutil = require("./ircutil");
 
 // handler the send buffer
 var workerSend = function (handle) {
@@ -37,7 +38,7 @@ var Client = function (opts) {
         user: "defuser",
         desc: "defdesc",
     };
-    // overwriting defaults
+    // overwrite defaults
     if (typeof opts === "object") {
         for (var key in defs) {
             if (opts[key] !== undefined) {
@@ -209,7 +210,7 @@ proto.connect = function () {
         buff = lines.pop();
 
         lines.forEach(function (line) {
-            var res = parsers.split(line);
+            var res = ircutil.resParse(line);
             that.emit("raw", res);
         });
     });
