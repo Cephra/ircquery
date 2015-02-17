@@ -1,4 +1,4 @@
 module.exports = {
-    Client: require("./client"),
-    Queries: require("./queries"),
+  Client: require("./client"),
+  Queries: require("./queries"),
 };
