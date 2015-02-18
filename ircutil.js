@@ -30,8 +30,7 @@ module.exports.resParse = function (line) {
         (_line[3][0] === ":") ? 
         _line[3].substr(1) : _line[3];
     }
-    response.params =
-      response.params.split(" ");
+    response.params = response.params.split(" ");
   } else if ((_line = line.match(reShort))) {
     response.type = _line[1];
     response.args = _line[2];

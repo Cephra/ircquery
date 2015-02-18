@@ -128,9 +128,9 @@ var Client = function (opts) {
       that.cmd("PING :"+that.server);
 
       timeout = setTimeout(function () {
-        // TODO make the client
-        // reconnect
-        process.exit();
+        that.socket.end();
+        that.socket.destroy();
+        that.connect();
       }, 5000);
     }, 60000);
   });
@@ -174,8 +174,7 @@ proto.part = function (chan, msg) {
 };
 proto.connect = function () {
   var that = this;
-  var sock = that.socket =
-    new net.Socket();
+  var sock = that.socket = new net.Socket();
   var config = that.config;
 
   // setup socket
@@ -184,9 +183,15 @@ proto.connect = function () {
 
   // init connection
   that.log("connecting...");
-  sock.connect(
-      config.port, 
-      config.server);
+  sock.connect(config.port, config.server);
+
+  sock.on("error", function (err) {
+    that.log("connection failed. "+
+        "retrying in 10 secs.");
+    setTimeout(function () {
+      that.connect();
+    }, 10000);
+  });
 
   // event handler for "connect"
   sock.on("connect", function () {
@@ -214,5 +219,8 @@ proto.connect = function () {
       that.emit("raw", res);
     });
   });
+};
+proto.disconnect = function () {
+  // STUB TODO implement this
 };
 module.exports = Client;
