@@ -12,18 +12,25 @@ module.exports.response = {
     // auto-respond to PING requests
     this.cmd("PONG :"+res.args);
   },
+  // ERR_NICKNAMEINUSE
   "433": function (res) {
-    // nickname already taken
-    // append underscore
-
-    this.nick += "_";
+    this.log("nick taken");
+    this.config.altnick += "_";
+    this.nick = this.config.altnick;
   },
+  // ERR_LINKCHANNEL
+  "470": function (res) {
+    var from = res.params[1];
+    var to = res.params[2];
+    this.emit("redirect", from, to);
+  },
+  // RPL_LUSERCLIENT
   "251": function (res) {
     // request multi prefix
     this.cmd("CAP REQ :multi-prefix");
 
-    // ignite the ping pong
-    this.cmd("PING :"+this.server);
+    // ignite the ping pong chain
+    this.cmd("PING :"+this.host);
 
     // login successful
     this.emit("login");
@@ -33,7 +40,6 @@ module.exports.response = {
     var to = res.args;
 
     // own nickname changed
-    // transparent update
     if (who.nick === this.nick) {
       this.config.nick = to;
       return;
@@ -110,6 +116,7 @@ module.exports.response = {
       this.emit("usermode");
     }
   },
+  // RPL_NAMEREPLY
   "353": function (res) {
     var where = res.params[2];
     var nicks = res.args.split(" ");
@@ -117,12 +124,14 @@ module.exports.response = {
       this.emit("names", where, nick);
     }, this);
   },
+  // RPL_CHANNELMODEIS
   "324": function (res) {
     var where = res.params[1];
     var flags = res.params[2];
 
     this.emit("chanflags", where, flags);
   },
+  // RPL_CREATIONTIME
   "329": function (res) {
     var chan = res.params[1];
     var timestamp = parseInt(res.params[2]);
@@ -152,6 +161,7 @@ module.exports.response = {
           res.args);
     }
   },
+  // RPL_ISUPPORT
   "005": function (res) {
     var split = res.params.slice(1);
     split.forEach(function (v) {

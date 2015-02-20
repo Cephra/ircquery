@@ -2,12 +2,13 @@
 
 var util = require("util");
 var net = require("net");
+var tls = require("tls");
 var events = require("events");
 var handlers = require("./handlers");
 var ircutil = require("./ircutil");
 
 // send buffer worker
-var workerSend = function (handle) {
+var sendWorker = function (handle) {
   var buf = handle.buf;
   if (buf.length > 0) {
     var cmd = buf.shift();
@@ -16,7 +17,7 @@ var workerSend = function (handle) {
     handle.delay = (handle.delay < 1000) ?
       handle.delay+250 : handle.delay;
 
-    setTimeout(workerSend, handle.delay, handle);
+    setTimeout(sendWorker, handle.delay, handle);
   } else { handle.delay = 0; }
 };
 
@@ -31,12 +32,15 @@ var Client = function (opts) {
 
   // default configuration
   var defs = {
-    server: "chat.freenode.net",
-    port: 6667,
+    host: "chat.freenode.net",
+    port: 7000,
     pass: "",
+    ssl: true,
     nick: "defnick",
     user: "defuser",
     desc: "defdesc",
+    retry: true,
+    dbg: false,
   };
   // overwrite defaults
   if (typeof opts === "object") {
@@ -46,28 +50,21 @@ var Client = function (opts) {
       }
     }
   }
+  defs.altnick = defs.nick;
 
   // getter & setter
   Object.defineProperties(that, {
-    options: {
-      get: function () {
-        return defs;
-      },
-    },
     nick: {
       get: function () {
         return that.config.nick;
       },
       set: function (v) {
-        // nick is automatically changed
-        // when the corresponding 
-        // server response is received
         this.cmd("NICK "+v);
       },
     },
-    server: {
+    host: {
       get: function () {
-        return that.config.server;
+        return that.config.host;
       },
     },
     config: {
@@ -77,14 +74,11 @@ var Client = function (opts) {
     },
   });
 
-  // debug flag
-  this.dbg = false;
-
   // server supports
   this.supports = {};
 
-  // buffer for the worker
-  var handlerSend = {
+  // sendHandle for sendWorker
+  var sendHandle = {
     buf: [],
     delay: 0,
     send: function (data) {
@@ -95,14 +89,14 @@ var Client = function (opts) {
   this.cmd = function (data, dobuf) {
     if (dobuf) {
       // buffering
-      handlerSend.buf.push(data);
-      if (handlerSend.delay === 0) {
-        workerSend(handlerSend);
+      sendHandle.buf.push(data);
+      if (sendHandle.delay === 0) {
+        sendWorker(sendHandle);
       }
       return that;
     } else {
       // don't buffer...
-      handlerSend.send(data);
+      sendHandle.send(data);
       return that;
     }
   };
@@ -125,11 +119,10 @@ var Client = function (opts) {
     // ping every minute
     // timeout after 5 seconds
     setTimeout(function () {
-      that.cmd("PING :"+that.server);
+      that.cmd("PING :"+that.host);
 
       timeout = setTimeout(function () {
-        that.socket.end();
-        that.socket.destroy();
+        that.disconnect();
         that.connect();
       }, 5000);
     }, 60000);
@@ -139,7 +132,7 @@ util.inherits(Client, events.EventEmitter);
 
 var proto = Client.prototype;
 proto.log = function (arg) {
-  if (this.dbg) {
+  if (this.config.dbg) {
     var date = new Date();
     console.log("["+
         date.toDateString()+" "+
@@ -166,16 +159,18 @@ proto.join = function (chan) {
   return this;
 };
 proto.part = function (chan, msg) {
-  if (this.channel(chan)) {
-    msg = (msg) ? " :"+msg : "";
-    this.cmd("PART "+chan+msg);
-  }
+  msg = (msg) ? " :"+msg : "";
+  this.cmd("PART "+chan+msg);
+
   return this;
 };
 proto.connect = function () {
   var that = this;
-  var sock = that.socket = new net.Socket();
   var config = that.config;
+  var sock = that.socket = (that.config.ssl) ? 
+    new tls.TLSSocket(new net.Socket(), {
+      isServer: false,
+    }) : new net.Socket();
 
   // setup socket
   sock.setEncoding("utf8");
@@ -183,12 +178,13 @@ proto.connect = function () {
 
   // init connection
   that.log("connecting...");
-  sock.connect(config.port, config.server);
+  sock.connect(config.port, config.host);
 
   sock.on("error", function (err) {
     that.log("connection failed. "+
         "retrying in 10 secs.");
     setTimeout(function () {
+      that.disconnect();
       that.connect();
     }, 10000);
   });
@@ -221,6 +217,13 @@ proto.connect = function () {
   });
 };
 proto.disconnect = function () {
-  // STUB TODO implement this
+  var that = this;
+  var sock = that.socket;
+
+  that.cmd("QUIT :"+that.config.quitmsg);
+
+  that.supports = {};
+
+  sock.destroy();
 };
 module.exports = Client;
