@@ -211,7 +211,7 @@ proto.connect = function () {
     buff = lines.pop();
 
     lines.forEach(function (line) {
-      var res = ircutil.resParse(line);
+      var res = ircutil.parseResponse(line);
       that.emit("raw", res);
     });
   });
@@ -220,10 +220,7 @@ proto.disconnect = function () {
   var that = this;
   var sock = that.socket;
 
-  that.cmd("QUIT :"+that.config.quitmsg);
-
   that.supports = {};
-
   sock.destroy();
 };
 module.exports = Client;

@@ -2,7 +2,7 @@
 
 // parse irc server responses into an
 // object we can work with
-module.exports.resParse = function (line) {
+module.exports.parseResponse = function (line) {
   var response = {};
   response.line = line;
 
@@ -18,7 +18,7 @@ module.exports.resParse = function (line) {
     // arguments?
     var i = _line[3].indexOf(" :");
     if (i != -1) {
-      i++;
+      i++; // skip the space
       var splt = [
         _line[3].substring(0,i-1),
         _line[3].substring(i+1),
@@ -42,23 +42,29 @@ module.exports.resParse = function (line) {
 
 // parse masked irc user string
 // into an object representing a user
-module.exports.userParse = function (userstring) {
-  var obj = {};
+module.exports.parseUser = function (userstring) {
+  var buildUser = function (nick, user, host) {
+    return {
+      getNick: function () {
+        return nick;
+      },
+      getUser: function () {
+        return user;
+      },
+      getHost: function () {
+        return host;
+      },
+    };
+  };
 
-  obj.raw = userstring;
-  if (obj.raw.indexOf("!") != -1) {
-    var spltNick = obj.raw.split("!");
+  var raw = userstring;
+  if (raw.indexOf("!") != -1) {
+    var spltNick = raw.split("!");
     var spltHost = spltNick[1].split("@");
     
-    // set nick
-    obj.nick = spltNick[0];
-
-    // and user@host
-    obj.user = spltHost[0];
-    obj.host = spltHost[1];
+    return buildUser(spltNick[0],
+        spltHost[0], spltHost[1]);
   } else {
-    obj.nick = obj.raw;
+    return buildUser(raw);
   }
-
-  return obj;
 };

@@ -36,29 +36,29 @@ module.exports.response = {
     this.emit("login");
   },
   "NICK": function (res) {
-    var who = ircutil.userParse(res.prefix);
+    var who = ircutil.parseUser(res.prefix);
     var to = res.args;
 
     // own nickname changed
-    if (who.nick === this.nick) {
+    if (who.getNick() === this.nick) {
       this.config.nick = to;
       return;
     }
 
     // emit nick change event
-    this.emit("nick", who.nick, to);
+    this.emit("nick", who.getNick(), to);
   },
   "QUIT": function (res) {
-    var who = ircutil.userParse(res.prefix);
+    var who = ircutil.parseUser(res.prefix);
 
     // throw quit event
     this.emit("quit", who, res.args);
   },
   "PART": function (res) {
-    var who = ircutil.userParse(res.prefix);
+    var who = ircutil.parseUser(res.prefix);
     var where = res.params[0];
     
-    if (who.nick === this.nick) {
+    if (who.getNick() === this.nick) {
       this.emit("partfrom",
           where,
           res.args);
@@ -70,7 +70,7 @@ module.exports.response = {
     }
   },
   "KICK": function (res) {
-    var who = ircutil.userParse(res.prefix);
+    var who = ircutil.parseUser(res.prefix);
     var where = res.params[0];
 
     // either remove channel or nick
@@ -92,10 +92,10 @@ module.exports.response = {
     }
   },
   "JOIN": function (res) {
-    var who = ircutil.userParse(res.prefix);
+    var who = ircutil.parseUser(res.prefix);
     var where = res.params[0];
     
-    if (who.nick === this.nick) {
+    if (who.getNick() === this.nick) {
       this.cmd("MODE "+where);
       this.emit("joined", where);
     } else {
@@ -103,7 +103,7 @@ module.exports.response = {
     }
   },
   "MODE": function (res) {
-    var who = ircutil.userParse(res.prefix);
+    var who = ircutil.parseUser(res.prefix);
 
     if (res.params[0][0] === "#") {
       var where = res.params[0];
@@ -139,30 +139,55 @@ module.exports.response = {
     this.emit("chantime", chan, timestamp);
   },
   "NOTICE": function (res) {
-    var who = ircutil.userParse(res.prefix);
+    var note = {
+      sender: ircutil.parseUser(res.prefix),
+      dest: res.params,
+      text: res.args,
+    };
 
-    this.emit("notice",
-        who,
-        res.params,
-        res.args);
+    this.emit("notice", note);
   },
   "PRIVMSG": function (res) {
-    var who = ircutil.userParse(res.prefix);
-    var where = res.params[0];
+    var that = this;
+    var msg = {
+      sender: ircutil.parseUser(res.prefix),
+      dest: res.params[0],
+      text: res.args,
+    };
 
-    if (where[0] === "#") {
-      this.emit("chanmsg", 
-          where,
-          who,
-          res.args);
+    if (msg.dest === this.nick) {
+      msg.respond = function (response) {
+        that.say(msg.sender.getNick(),
+            response);
+      };
+      this.emit("privmsg", msg);
     } else { 
-      this.emit("privmsg", 
-          who,
-          res.args);
+      msg.respond = function (response) {
+        that.say(msg.dest, response);
+      };
+      msg.respondTo = function (response) {
+        that.say(msg.dest, 
+            msg.sender.getNick()+": "+response);
+      };
+      msg.respondPrivate = function (response) {
+        that.say(msg.sender.getNick(), response);
+      };
+
+      // we got highlighted? 
+      var reHighlight = 
+        new RegExp("(?:\\s|^)"+
+            this.nick+
+            "(?:\\s|\\.|!|\\?|:|$)", "i");
+      msg.isHighlight = 
+        (msg.text.search(reHighlight)!== -1) ?
+        true : false;
+
+      this.emit("chanmsg", msg);
     }
   },
   // RPL_ISUPPORT
   "005": function (res) {
+    // TODO add useful functions to the supports object 
     var split = res.params.slice(1);
     split.forEach(function (v) {
       var match;
@@ -171,6 +196,8 @@ module.exports.response = {
         var value = match[2];
         switch (param) {
         case "CHANTYPES":
+          // maybe make this a regex
+          this.supports.chantypes = value;
           break;
         case "CHANMODES":
           var modes = value.split(",");
@@ -183,12 +210,31 @@ module.exports.response = {
           break;
         case "PREFIX":
           var re = /\((.+)\)(.+)/;
-          var prefs = value.split(re);
+          var tmp = value.split(re);
 
-          this.supports.modeprefix = 
-            prefs[2].split("");
-          this.supports.prefixmode = 
-            prefs[1].split("");
+          var mappings = {
+            mode: tmp[1].split(""),
+            prefix: tmp[2].split(""),
+          };
+
+          var a2b = function (a, b, c) {
+            var i = a.indexOf(c);
+            return b[i];
+          };
+
+          // There is probably no need to populate this
+          // this.supports.modesprefixes = mappings;
+
+          this.supports.modeToPrefix =
+            function (c) {
+              return a2b(mappings.mode, 
+                  mappings.prefix, c);
+            };
+          this.supports.prefixToMode =
+            function (c) {
+              return a2b(mappings.prefix, 
+                  mappings.mode, c);
+            };
           break;
         }
       }
