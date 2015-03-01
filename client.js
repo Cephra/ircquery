@@ -23,7 +23,7 @@ var sendWorker = function (handle) {
 
 // client constructor
 var Client = function (opts) {
-  // Inherit from Event Emitter 
+  // Inherit from Event Emitter
   // so we can throw Events
   events.EventEmitter.call(this);
 
@@ -101,7 +101,7 @@ var Client = function (opts) {
     }
   };
 
-  // handlers 
+  // handlers
   this.on("raw", function (res) {
     that.log("<-- "+res.line);
     if (handlers.response[res.type]) {
@@ -167,7 +167,7 @@ proto.part = function (chan, msg) {
 proto.connect = function () {
   var that = this;
   var config = that.config;
-  var sock = that.socket = (that.config.ssl) ? 
+  var sock = that.socket = (that.config.ssl) ?
     new tls.TLSSocket(new net.Socket(), {
       isServer: false,
     }) : new net.Socket();
@@ -206,7 +206,7 @@ proto.connect = function () {
   var buff = "";
   sock.on("data", function (chunk) {
     buff += chunk;
-  
+
     var lines = buff.split("\r\n");
     buff = lines.pop();
 

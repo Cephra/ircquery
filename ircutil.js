@@ -45,13 +45,13 @@ module.exports.parseResponse = function (line) {
 module.exports.parseUser = function (userstring) {
   var buildUser = function (nick, user, host) {
     return {
-      getNick: function () {
+      nick: function () {
         return nick;
       },
-      getUser: function () {
+      user: function () {
         return user;
       },
-      getHost: function () {
+      host: function () {
         return host;
       },
     };
@@ -68,3 +68,9 @@ module.exports.parseUser = function (userstring) {
     return buildUser(raw);
   }
 };
+
+//TODO think about adding this
+//module.exports.buildEvObj = function () {
+//  return {
+//  };
+//};

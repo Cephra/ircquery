@@ -40,13 +40,13 @@ module.exports.response = {
     var to = res.args;
 
     // own nickname changed
-    if (who.getNick() === this.nick) {
+    if (who.nick() === this.nick) {
       this.config.nick = to;
       return;
     }
 
     // emit nick change event
-    this.emit("nick", who.getNick(), to);
+    this.emit("nick", who.nick(), to);
   },
   "QUIT": function (res) {
     var who = ircutil.parseUser(res.prefix);
@@ -58,48 +58,62 @@ module.exports.response = {
     var who = ircutil.parseUser(res.prefix);
     var where = res.params[0];
     
-    if (who.getNick() === this.nick) {
-      this.emit("partfrom",
+    if (who.nick() === this.nick) {
+      this.emit("parted",
           where,
           res.args);
     } else {
-      this.emit("partin",
+      this.emit("parts",
           where, 
           who, 
           res.args);
     }
   },
   "KICK": function (res) {
-    var who = ircutil.parseUser(res.prefix);
-    var where = res.params[0];
-
+    var that = this;
+    var kick = {
+      who: function () {
+        return ircutil.parseUser(res.prefix);
+      },
+      dest: function () {
+        return res.params[0];
+      },
+      target: function () {
+        return res.params[1];
+      },
+    };
     // either remove channel or nick
-    if (res.params[1] === this.nick) {
-      var chan = this.channel(where);
-      if (chan.rejoin) {
-        this.join(where, true);
-      }
-      this.emit("kicked",
-          where,
-          who,
-          res.args);
+    if (kick.target() === this.nick) {
+      kick.rejoin = function () {
+        that.join(kick.dest());
+      };
+      this.emit("kicked", kick);
     } else {
-      this.emit("userkicked",
-          where, 
-          who,
-          res.params[1],
-          res.args);
+      this.emit("kicks", kick);
     }
   },
   "JOIN": function (res) {
+    var that = this;
     var who = ircutil.parseUser(res.prefix);
-    var where = res.params[0];
+    var join = {
+      sender: function () {
+        return who;
+      },
+      dest: function () {
+        return res.params[0];
+      },
+    };
     
-    if (who.getNick() === this.nick) {
-      this.cmd("MODE "+where);
-      this.emit("joined", where);
+    if (join.sender().nick() === this.nick) {
+      join.modes = function () {
+        that.cmd("MODE "+join.dest());
+      };
+      join.greet = function (greeting) {
+        that.say(join.dest(), greeting);
+      };
+      this.emit("joined", join);
     } else {
-      this.emit("userjoined", where, who);
+      this.emit("joins", join);
     }
   },
   "MODE": function (res) {
@@ -118,11 +132,16 @@ module.exports.response = {
   },
   // RPL_NAMEREPLY
   "353": function (res) {
-    var where = res.params[2];
     var nicks = res.args.split(" ");
-    nicks.forEach(function (nick) {
-      this.emit("names", where, nick);
-    }, this);
+    var names = {
+      dest: function () {
+        return res.params[2];
+      },
+      nicks: function () {
+        return nicks;
+      },
+    };
+    this.emit("names", names);
   },
   // RPL_CHANNELMODEIS
   "324": function (res) {
@@ -149,28 +168,35 @@ module.exports.response = {
   },
   "PRIVMSG": function (res) {
     var that = this;
+    var sender = ircutil.parseUser(res.prefix);
     var msg = {
-      sender: ircutil.parseUser(res.prefix),
-      dest: res.params[0],
-      text: res.args,
+      sender: function () {
+        return sender;
+      },
+      dest: function () {
+        return res.params[0];
+      },
+      text: function () {
+        return res.args;
+      },
     };
 
-    if (msg.dest === this.nick) {
+    if (msg.dest() === this.nick) {
       msg.respond = function (response) {
-        that.say(msg.sender.getNick(),
+        that.say(msg.sender().nick(),
             response);
       };
       this.emit("privmsg", msg);
     } else { 
       msg.respond = function (response) {
-        that.say(msg.dest, response);
+        that.say(msg.dest(), response);
       };
       msg.respondTo = function (response) {
-        that.say(msg.dest, 
-            msg.sender.getNick()+": "+response);
+        that.say(msg.dest(), 
+            msg.sender().nick()+": "+response);
       };
       msg.respondPrivate = function (response) {
-        that.say(msg.sender.getNick(), response);
+        that.say(msg.sender().nick(), response);
       };
 
       // we got highlighted? 
@@ -179,7 +205,7 @@ module.exports.response = {
             this.nick+
             "(?:\\s|\\.|!|\\?|:|$)", "i");
       msg.isHighlight = 
-        (msg.text.search(reHighlight)!== -1) ?
+        (msg.text().search(reHighlight)!== -1) ?
         true : false;
 
       this.emit("chanmsg", msg);
