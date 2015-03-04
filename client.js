@@ -6,6 +6,7 @@ var tls = require("tls");
 var events = require("events");
 var handlers = require("./handlers");
 var ircutil = require("./ircutil");
+var queries = require("./queries");
 
 // send buffer worker
 var sendWorker = function (handle) {
@@ -22,7 +23,7 @@ var sendWorker = function (handle) {
 };
 
 // client constructor
-var Client = function (opts) {
+var Client = function (userconf) {
   // Inherit from Event Emitter
   // so we can throw Events
   events.EventEmitter.call(this);
@@ -31,29 +32,42 @@ var Client = function (opts) {
   var that = this;
 
   // default configuration
-  var defs = {
+  var conf = {
     host: "chat.freenode.net",
     port: 7000,
     pass: "",
+    retry: true,
     ssl: true,
     nick: "defnick",
     user: "defuser",
     desc: "defdesc",
-    retry: true,
     dbg: false,
   };
   // overwrite defaults
-  if (typeof opts === "object") {
-    for (var key in defs) {
-      if (opts[key] !== undefined) {
-        defs[key] = opts[key];
+  if (typeof userconf === "object") {
+    for (var key in conf) {
+      if (userconf[key] !== undefined) {
+        conf[key] = userconf[key];
       }
     }
   }
-  defs.altnick = defs.nick;
+  conf.altnick = conf.nick;
+
+  var user = queries.Users.call(this);
+  //var channel = queries.Channels.call(this);
 
   // getter & setter
   Object.defineProperties(that, {
+    user: {
+      get: function () {
+        return user;
+      },
+    },
+    channel: {
+      get: function () {
+        return channel;
+      },
+    },
     nick: {
       get: function () {
         return that.config.nick;
@@ -69,7 +83,7 @@ var Client = function (opts) {
     },
     config: {
       get: function () {
-        return defs;
+        return conf;
       },
     },
   });
@@ -112,6 +126,10 @@ var Client = function (opts) {
   // received pong, send ping
   var timeout;
   this.on("pong", function(args) {
+    // do nothing if retry is off
+    if (!that.config.retry) {
+      return;
+    }
 
     // kill timeout if set
     if (timeout) { clearTimeout(timeout); }
@@ -131,6 +149,7 @@ var Client = function (opts) {
 util.inherits(Client, events.EventEmitter);
 
 var proto = Client.prototype;
+
 proto.log = function (arg) {
   if (this.config.dbg) {
     var date = new Date();
@@ -153,8 +172,12 @@ proto.say = function (target, msg) {
   return this;
 };
 proto.join = function (chan) {
-  this.cmd("JOIN "+chan);
-  this.emit("joining", chan);
+  if (Array.isArray(chan)) {
+    this.cmd("JOIN "+chan.join(","));
+  } else {
+    this.cmd("JOIN "+chan);
+  }
+  //this.emit("joining", chan);
 
   return this;
 };
@@ -165,6 +188,9 @@ proto.part = function (chan, msg) {
   return this;
 };
 proto.connect = function () {
+  if (this.hasQuit) {
+    return;
+  }
   var that = this;
   var config = that.config;
   var sock = that.socket = (that.config.ssl) ?
@@ -181,7 +207,7 @@ proto.connect = function () {
   sock.connect(config.port, config.host);
 
   sock.on("error", function (err) {
-    that.log("connection failed. "+
+    that.log("socket error"+
         "retrying in 10 secs.");
     setTimeout(function () {
       that.disconnect();
@@ -189,7 +215,16 @@ proto.connect = function () {
     }, 10000);
   });
 
-  // event handler for "connect"
+  // only there for debug purposes
+  sock.on("close", function (had_err) {
+    if (had_err) {
+      that.log("closed with error");
+    } else {
+      that.log("closed without error");
+    }
+  });
+
+  // connection successful
   sock.on("connect", function () {
     // logging in
     var pass = config.pass;
@@ -197,12 +232,11 @@ proto.connect = function () {
       that.cmd("PASS "+pass);
 
     that.cmd("NICK "+config.nick);
-
     that.cmd("USER "+config.user+
         " 0 * :"+config.desc);
   });
 
-  // line buffering on data receive
+  // line buffering..
   var buff = "";
   sock.on("data", function (chunk) {
     buff += chunk;
@@ -216,11 +250,16 @@ proto.connect = function () {
     });
   });
 };
-proto.disconnect = function () {
+proto.quit = function (msg) {
+  this.cmd("QUIT"+((msg) ?
+      " :"+msg : ""));
+  this.disconnect();
+};
+proto.disconnect = function (msg) {
   var that = this;
   var sock = that.socket;
 
-  that.supports = {};
-  sock.destroy();
+  this.supports = {};
+  sock.end();
 };
 module.exports = Client;

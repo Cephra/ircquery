@@ -14,7 +14,7 @@ module.exports.response = {
   },
   // ERR_NICKNAMEINUSE
   "433": function (res) {
-    this.log("nick taken");
+    this.log("nick taken > changing");
     this.config.altnick += "_";
     this.nick = this.config.altnick;
   },
@@ -30,29 +30,47 @@ module.exports.response = {
     this.cmd("CAP REQ :multi-prefix");
 
     // ignite the ping pong chain
-    this.cmd("PING :"+this.host);
+    // if retry is enabled
+    if (this.config.retry) {
+      this.cmd("PING :"+this.host);
+    }
+
+    // set a global connected flag
 
     // login successful
     this.emit("login");
   },
   "NICK": function (res) {
-    var who = ircutil.parseUser(res.prefix);
-    var to = res.args;
+    var user = ircutil.parseUser(res.prefix);
+    var change = {
+      user: function () {
+        return user;
+      },
+      to: function () {
+        return res.args;
+      },
+    };
 
     // own nickname changed
-    if (who.nick() === this.nick) {
-      this.config.nick = to;
+    if (change.user().nick() === this.nick) {
+      this.config.nick = change.to();
       return;
     }
 
     // emit nick change event
-    this.emit("nick", who.nick(), to);
+    this.emit("nick", change);
   },
   "QUIT": function (res) {
-    var who = ircutil.parseUser(res.prefix);
-
-    // throw quit event
-    this.emit("quit", who, res.args);
+    var user = ircutil.parseUser(res.prefix);
+    var e = {
+      user: function () {
+        return user;
+      },
+      msg: function () {
+        return res.args;
+      },
+    }
+    this.emit("quit", e);
   },
   "PART": function (res) {
     var who = ircutil.parseUser(res.prefix);
@@ -71,21 +89,21 @@ module.exports.response = {
   },
   "KICK": function (res) {
     var that = this;
+    var user = ircutil.parseUser(res.prefix);
     var kick = {
-      who: function () {
-        return ircutil.parseUser(res.prefix);
+      user: function () {
+        return user;
       },
-      dest: function () {
+      chan: function () {
         return res.params[0];
       },
       target: function () {
         return res.params[1];
       },
     };
-    // either remove channel or nick
     if (kick.target() === this.nick) {
       kick.rejoin = function () {
-        that.join(kick.dest());
+        that.join(kick.chan());
       };
       this.emit("kicked", kick);
     } else {
@@ -94,22 +112,22 @@ module.exports.response = {
   },
   "JOIN": function (res) {
     var that = this;
-    var who = ircutil.parseUser(res.prefix);
+    var user = ircutil.parseUser(res.prefix);
     var join = {
-      sender: function () {
-        return who;
+      user: function () {
+        return user;
       },
-      dest: function () {
+      chan: function () {
         return res.params[0];
       },
     };
     
-    if (join.sender().nick() === this.nick) {
+    if (join.user().nick() === this.nick) {
       join.modes = function () {
-        that.cmd("MODE "+join.dest());
+        that.cmd("MODE "+join.chan());
       };
       join.greet = function (greeting) {
-        that.say(join.dest(), greeting);
+        that.say(join.chan(), greeting);
       };
       this.emit("joined", join);
     } else {
@@ -117,7 +135,8 @@ module.exports.response = {
     }
   },
   "MODE": function (res) {
-    var who = ircutil.parseUser(res.prefix);
+    // TODO put this into the new object-based form
+    var user = ircutil.parseUser(res.prefix);
 
     if (res.params[0][0] === "#") {
       var where = res.params[0];
@@ -125,7 +144,7 @@ module.exports.response = {
       var arg = (res.params[2]) ? 
         undefined : res.params[2];
 
-      this.emit("chanmode", where, who, mode, arg);
+      this.emit("chanmode", where, user, mode, arg);
     } else {
       this.emit("usermode");
     }
@@ -133,15 +152,15 @@ module.exports.response = {
   // RPL_NAMEREPLY
   "353": function (res) {
     var nicks = res.args.split(" ");
-    var names = {
-      dest: function () {
+    var e = {
+      chan: function () {
         return res.params[2];
       },
       nicks: function () {
         return nicks;
       },
     };
-    this.emit("names", names);
+    this.emit("names", e);
   },
   // RPL_CHANNELMODEIS
   "324": function (res) {
@@ -158,20 +177,27 @@ module.exports.response = {
     this.emit("chantime", chan, timestamp);
   },
   "NOTICE": function (res) {
+    var user = ircutil.parseUser(res.prefix);
     var note = {
-      sender: ircutil.parseUser(res.prefix),
-      dest: res.params,
-      text: res.args,
+      user: function () {
+        return user;
+      },
+      dest: function () {
+        return res.params[0];
+      },
+      text: function () {
+        return res.args;
+      },
     };
 
     this.emit("notice", note);
   },
   "PRIVMSG": function (res) {
     var that = this;
-    var sender = ircutil.parseUser(res.prefix);
+    var user = ircutil.parseUser(res.prefix);
     var msg = {
-      sender: function () {
-        return sender;
+      user: function () {
+        return user;
       },
       dest: function () {
         return res.params[0];
@@ -183,7 +209,7 @@ module.exports.response = {
 
     if (msg.dest() === this.nick) {
       msg.respond = function (response) {
-        that.say(msg.sender().nick(),
+        that.say(msg.user().nick(),
             response);
       };
       this.emit("privmsg", msg);
@@ -193,17 +219,17 @@ module.exports.response = {
       };
       msg.respondTo = function (response) {
         that.say(msg.dest(), 
-            msg.sender().nick()+": "+response);
+            msg.user().nick()+": "+response);
       };
       msg.respondPrivate = function (response) {
-        that.say(msg.sender().nick(), response);
+        that.say(msg.user().nick(), response);
       };
 
       // we got highlighted? 
       var reHighlight = 
-        new RegExp("(?:\\s|^)"+
+        new RegExp("(?:^|[\\s#])"+
             this.nick+
-            "(?:\\s|\\.|!|\\?|:|$)", "i");
+            "(?:$|[\\s.!?:])", "i");
       msg.isHighlight = 
         (msg.text().search(reHighlight)!== -1) ?
         true : false;
@@ -247,9 +273,6 @@ module.exports.response = {
             var i = a.indexOf(c);
             return b[i];
           };
-
-          // There is probably no need to populate this
-          // this.supports.modesprefixes = mappings;
 
           this.supports.modeToPrefix =
             function (c) {
