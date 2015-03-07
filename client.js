@@ -6,7 +6,7 @@ var tls = require("tls");
 var events = require("events");
 var handlers = require("./handlers");
 var ircutil = require("./ircutil");
-var queries = require("./queries");
+var query = require("./query");
 
 // send buffer worker
 var sendWorker = function (handle) {
@@ -42,6 +42,7 @@ var Client = function (userconf) {
     user: "defuser",
     desc: "defdesc",
     dbg: false,
+    dbglvl: 0,
   };
   // overwrite defaults
   if (typeof userconf === "object") {
@@ -52,20 +53,15 @@ var Client = function (userconf) {
     }
   }
   conf.altnick = conf.nick;
+  Object.seal(conf);
 
-  var user = queries.Users.call(this);
-  //var channel = queries.Channels.call(this);
+  var qry = query.create.call(this);
 
   // getter & setter
   Object.defineProperties(that, {
-    user: {
+    qry: {
       get: function () {
-        return user;
-      },
-    },
-    channel: {
-      get: function () {
-        return channel;
+        return qry;
       },
     },
     nick: {
@@ -88,15 +84,15 @@ var Client = function (userconf) {
     },
   });
 
-  // server supports
-  this.supports = {};
+  // object for serverbased utils
+  this.util = {};
 
   // sendHandle for sendWorker
   var sendHandle = {
     buf: [],
     delay: 0,
     send: function (data) {
-      that.log("--> "+data);
+      that.log(2,"--> "+data);
       that.socket.write(data+"\r\n");
     },
   };
@@ -107,41 +103,43 @@ var Client = function (userconf) {
       if (sendHandle.delay === 0) {
         sendWorker(sendHandle);
       }
-      return that;
     } else {
       // don't buffer...
       sendHandle.send(data);
-      return that;
     }
+    return that;
   };
 
   // handlers
   this.on("raw", function (res) {
-    that.log("<-- "+res.line);
+    that.log(2,"<-- "+res.line);
     if (handlers.response[res.type]) {
       handlers.response[res.type].call(that, res);
     }
   });
 
   // received pong, send ping
-  var timeout;
+  var ping = {};
+  this.on("disconnect", function () {
+    if (ping.tmout) { clearTimeout(ping.tmuot); }
+    if (ping.send) { clearTimeout(ping.send); }
+  });
   this.on("pong", function(args) {
-    // do nothing if retry is off
-    if (!that.config.retry) {
-      return;
-    }
+    that.log(1,"received pong");
 
     // kill timeout if set
-    if (timeout) { clearTimeout(timeout); }
+    if (ping.tmout) { clearTimeout(ping.tmout); }
 
     // ping every minute
     // timeout after 5 seconds
-    setTimeout(function () {
+    ping.send = setTimeout(function () {
+      that.log(1,"sent ping");
+
       that.cmd("PING :"+that.host);
 
-      timeout = setTimeout(function () {
-        that.disconnect();
-        that.connect();
+      ping.tmout = setTimeout(function () {
+        that.log(1,"ping timeout");
+        that.reconnect();
       }, 5000);
     }, 60000);
   });
@@ -150,8 +148,9 @@ util.inherits(Client, events.EventEmitter);
 
 var proto = Client.prototype;
 
-proto.log = function (arg) {
-  if (this.config.dbg) {
+proto.log = function (lvl, arg) {
+  if (this.config.dbg &&
+      this.config.dbglvl >= lvl) {
     var date = new Date();
     console.log("["+
         date.toDateString()+" "+
@@ -173,11 +172,10 @@ proto.say = function (target, msg) {
 };
 proto.join = function (chan) {
   if (Array.isArray(chan)) {
-    this.cmd("JOIN "+chan.join(","));
+    this.cmd("JOIN "+chan.join());
   } else {
     this.cmd("JOIN "+chan);
   }
-  //this.emit("joining", chan);
 
   return this;
 };
@@ -188,9 +186,6 @@ proto.part = function (chan, msg) {
   return this;
 };
 proto.connect = function () {
-  if (this.hasQuit) {
-    return;
-  }
   var that = this;
   var config = that.config;
   var sock = that.socket = (that.config.ssl) ?
@@ -203,24 +198,23 @@ proto.connect = function () {
   sock.setTimeout(0);
 
   // init connection
-  that.log("connecting...");
+  that.log(1,"connecting...");
   sock.connect(config.port, config.host);
 
   sock.on("error", function (err) {
-    that.log("socket error"+
+    that.log(1,"socket error. "+
         "retrying in 10 secs.");
     setTimeout(function () {
-      that.disconnect();
-      that.connect();
+      that.reconnect();
     }, 10000);
   });
 
   // only there for debug purposes
   sock.on("close", function (had_err) {
     if (had_err) {
-      that.log("closed with error");
+      that.log(1,"closed with error");
     } else {
-      that.log("closed without error");
+      that.log(1,"closed without error");
     }
   });
 
@@ -251,15 +245,41 @@ proto.connect = function () {
   });
 };
 proto.quit = function (msg) {
-  this.cmd("QUIT"+((msg) ?
-      " :"+msg : ""));
-  this.disconnect();
-};
-proto.disconnect = function (msg) {
   var that = this;
   var sock = that.socket;
 
-  this.supports = {};
+  that.cmd("QUIT"+((msg) ?
+      " :"+msg : ""));
+
+  that.util = {};
   sock.end();
+
+  that.emit("disconnect");
 };
+proto.reconnect = function () {
+  var that = this;
+  var sock = that.socket;
+
+  that.util = {};
+  sock.destroy();
+
+  that.connect();
+};
+
+proto.plugin = function (plugin) {
+  var that = this;
+  var events = Object.keys(plugin.events);
+  console.log("Loading plugin: "+plugin.name);
+
+  events.forEach(function (v) {
+    if (Array.isArray(plugin.events[v])) {
+      plugin.events[v].forEach(function (vv) {
+        that.on(v, vv);
+      });
+    } else {
+      that.on(v, plugin.events[v]);
+    }
+  });
+};
+
 module.exports = Client;

@@ -1,9 +1,50 @@
 "use strict";
 
-var ircutil = require("./ircutil");
+// magic
+var q = function (v) {
+  return function (m, cb) {
+    if (!m) {
+      return v;
+    } else {
+      var r, mr;
+      if (typeof m === "string") {
+        r = (v === m) ?
+          true : false;
+      } else if (m instanceof RegExp) {
+        r = ((mr = v.match(m)) !== null) ? 
+          true : false;
+      }
+      if (cb && r &&
+            typeof cb === "function") {
+          cb(mr);
+      } else { return r; }
+    }
+  };
+};
+
+var parseUser = function (userstring) {
+  var buildUser = function (nick, user, host) {
+    return {
+      nick: q(nick),
+      user: q(user),
+      host: q(host),
+    };
+  };
+
+  var raw = userstring;
+  if (raw.indexOf("!") != -1) {
+    var spltNick = raw.split("!");
+    var spltHost = spltNick[1].split("@");
+    
+    return buildUser(spltNick[0],
+        spltHost[0], spltHost[1]);
+  } else {
+    // userstring has just the nick
+    return buildUser(raw,"","");
+  }
+};
 
 // handlers for the server responses
-// every function executed client scope 
 module.exports.response = {
   "PONG": function (res) {
     this.emit("pong", res.args);
@@ -14,15 +55,21 @@ module.exports.response = {
   },
   // ERR_NICKNAMEINUSE
   "433": function (res) {
-    this.log("nick taken > changing");
+    this.log(1,"nick taken > changing");
     this.config.altnick += "_";
     this.nick = this.config.altnick;
   },
   // ERR_LINKCHANNEL
   "470": function (res) {
-    var from = res.params[1];
-    var to = res.params[2];
-    this.emit("redirect", from, to);
+    var e = {
+      from: function () {
+        return res.params[1];
+      },
+      to: function () {
+        return res.params[2];
+      },
+    };
+    this.emit("redirect", e);
   },
   // RPL_LUSERCLIENT
   "251": function (res) {
@@ -35,33 +82,35 @@ module.exports.response = {
       this.cmd("PING :"+this.host);
     }
 
-    // set a global connected flag
-
     // login successful
-    this.emit("login");
+    if (!this.loggedIn) {
+      this.emit("login");
+      this.loggedIn = true;
+    } else {
+      this.emit("reconnect");
+    }
   },
   "NICK": function (res) {
-    var user = ircutil.parseUser(res.prefix);
-    var change = {
+    var user = parseUser(res.prefix);
+    var e = {
       user: function () {
         return user;
       },
       to: function () {
-        return res.args;
+        return res.params[0];
       },
     };
 
     // own nickname changed
-    if (change.user().nick() === this.nick) {
-      this.config.nick = change.to();
-      return;
+    if (e.user().nick(this.nick)) {
+      this.config.nick = e.to();
     }
 
     // emit nick change event
-    this.emit("nick", change);
+    this.emit("nick", e);
   },
   "QUIT": function (res) {
-    var user = ircutil.parseUser(res.prefix);
+    var user = parseUser(res.prefix);
     var e = {
       user: function () {
         return user;
@@ -69,82 +118,92 @@ module.exports.response = {
       msg: function () {
         return res.args;
       },
-    }
-    this.emit("quit", e);
+    };
+    this.emit("quits", e);
   },
   "PART": function (res) {
-    var who = ircutil.parseUser(res.prefix);
-    var where = res.params[0];
+    var user = parseUser(res.prefix);
+    var e = {
+      user: function () {
+        return user;
+      },
+      chan: q(res.params[0]),
+      msg: q(res.args),
+    };
     
-    if (who.nick() === this.nick) {
-      this.emit("parted",
-          where,
-          res.args);
+    if (e.user().nick() === this.nick) {
+      this.emit("parted", e);
     } else {
-      this.emit("parts",
-          where, 
-          who, 
-          res.args);
+      this.emit("parts", e);
     }
   },
   "KICK": function (res) {
     var that = this;
-    var user = ircutil.parseUser(res.prefix);
-    var kick = {
+    var user = parseUser(res.prefix);
+    var e = {
       user: function () {
         return user;
       },
-      chan: function () {
-        return res.params[0];
-      },
-      target: function () {
-        return res.params[1];
-      },
+      chan: q(res.params[0]),
+      target: q(res.params[1]),
+      msg: q(res.args),
     };
-    if (kick.target() === this.nick) {
-      kick.rejoin = function () {
-        that.join(kick.chan());
+    if (e.target(this.nick)) {
+      e.rejoin = function () {
+        that.join(e.chan());
       };
-      this.emit("kicked", kick);
+      this.emit("kicked", e);
     } else {
-      this.emit("kicks", kick);
+      this.emit("kicks", e);
     }
   },
   "JOIN": function (res) {
     var that = this;
-    var user = ircutil.parseUser(res.prefix);
-    var join = {
+    var user = parseUser(res.prefix);
+    var e = {
       user: function () {
         return user;
       },
-      chan: function () {
-        return res.params[0];
-      },
+      chan: q(res.params[0]),
     };
     
-    if (join.user().nick() === this.nick) {
-      join.modes = function () {
-        that.cmd("MODE "+join.chan());
+    if (e.user().nick(this.nick)) {
+      e.modes = function () {
+        that.cmd("MODE "+e.chan());
       };
-      join.greet = function (greeting) {
-        that.say(join.chan(), greeting);
+      e.greet = function (greeting) {
+        that.say(e.chan(), greeting);
       };
-      this.emit("joined", join);
+      this.emit("joined", e);
     } else {
-      this.emit("joins", join);
+      this.emit("joins", e);
     }
   },
   "MODE": function (res) {
-    // TODO put this into the new object-based form
-    var user = ircutil.parseUser(res.prefix);
+    var user = parseUser(res.prefix);
+    var e = {
+      user: function () {
+        return user;
+      },
+      target: q(res.params[0]),
+    };
+    var mask = (res.params[1] || res.args).split("");
 
-    if (res.params[0][0] === "#") {
-      var where = res.params[0];
-      var mode = res.params[1];
-      var arg = (res.params[2]) ? 
-        undefined : res.params[2];
-
-      this.emit("chanmode", where, user, mode, arg);
+    if (this.util.isChan(e.target())) {
+      e.mask = function () {
+        return {
+          op: mask[0],
+          mode: mask[1],
+        };
+      };
+      e.arg = function () {
+        return res.params[2] || "";
+      };
+      if (this.util.isChanMode(e.mask().mode)) {
+        this.emit("chanmode", e);
+      } else {
+        this.emit("nickmode", e);
+      }
     } else {
       this.emit("usermode");
     }
@@ -153,9 +212,7 @@ module.exports.response = {
   "353": function (res) {
     var nicks = res.args.split(" ");
     var e = {
-      chan: function () {
-        return res.params[2];
-      },
+      chan: q(res.params[2]),
       nicks: function () {
         return nicks;
       },
@@ -177,52 +234,43 @@ module.exports.response = {
     this.emit("chantime", chan, timestamp);
   },
   "NOTICE": function (res) {
-    var user = ircutil.parseUser(res.prefix);
-    var note = {
+    var user = parseUser(res.prefix);
+    var e = {
       user: function () {
         return user;
       },
-      dest: function () {
-        return res.params[0];
-      },
-      text: function () {
-        return res.args;
-      },
+      text: q(res.args),
     };
 
-    this.emit("notice", note);
+    this.emit("notice", e);
   },
   "PRIVMSG": function (res) {
     var that = this;
-    var user = ircutil.parseUser(res.prefix);
-    var msg = {
+    var user = parseUser(res.prefix);
+    var e = {
       user: function () {
         return user;
       },
-      dest: function () {
-        return res.params[0];
-      },
-      text: function () {
-        return res.args;
-      },
+      dest: q(res.params[0]),
+      text: q(res.args),
     };
 
-    if (msg.dest() === this.nick) {
-      msg.respond = function (response) {
-        that.say(msg.user().nick(),
+    if (e.dest(this.nick)) {
+      e.respond = function (response) {
+        that.say(e.user().nick(),
             response);
       };
-      this.emit("privmsg", msg);
+      this.emit("privmsg", e);
     } else { 
-      msg.respond = function (response) {
-        that.say(msg.dest(), response);
+      e.respond = function (response) {
+        that.say(e.dest(), response);
       };
-      msg.respondTo = function (response) {
-        that.say(msg.dest(), 
-            msg.user().nick()+": "+response);
+      e.respondTo = function (response) {
+        that.say(e.dest(), 
+            e.user().nick()+": "+response);
       };
-      msg.respondPrivate = function (response) {
-        that.say(msg.user().nick(), response);
+      e.respondPrivate = function (response) {
+        that.say(e.user().nick(), response);
       };
 
       // we got highlighted? 
@@ -230,34 +278,42 @@ module.exports.response = {
         new RegExp("(?:^|[\\s#])"+
             this.nick+
             "(?:$|[\\s.!?:])", "i");
-      msg.isHighlight = 
-        (msg.text().search(reHighlight)!== -1) ?
+      e.isHighlight = (e.text(reHighlight) !== -1) ?
         true : false;
 
-      this.emit("chanmsg", msg);
+      this.emit("chanmsg", e);
     }
   },
   // RPL_ISUPPORT
   "005": function (res) {
-    // TODO add useful functions to the supports object 
     var split = res.params.slice(1);
+    var obj = this.util;
     split.forEach(function (v) {
       var match;
       if ((match = v.match(/([A-Z]+)=(.*)/))) {
         var param = match[1];
         var value = match[2];
+
         switch (param) {
         case "CHANTYPES":
-          // maybe make this a regex
-          this.supports.chantypes = value;
+          var chanRE = new RegExp("^["+value+"]");
+          obj.isChan = function (s) {
+            return (s.search(chanRE) !== -1) ?
+              true : false;
+          };
           break;
         case "CHANMODES":
           var modes = value.split(",");
-          this.supports.chanmodes = {
-            A: modes[0],
-            B: modes[1],
-            C: modes[2],
-            D: modes[3],
+
+          var modeRE = new RegExp("^["+
+              modes[0]+
+              modes[1]+
+              modes[2]+
+              modes[3]+"]$");
+
+          obj.isChanMode = function (s) {
+            return (s.search(modeRE) !== -1) ?
+              true : false;
           };
           break;
         case "PREFIX":
@@ -269,17 +325,32 @@ module.exports.response = {
             prefix: tmp[2].split(""),
           };
 
+          var prefixRE = new RegExp("^(["+
+              tmp[2]+"]*)(.*)$");
+          obj.splitPrefix =
+            function (str) {
+              var tmp = str.match(prefixRE); 
+              return {
+                modes: (function (prefs) {
+                  prefs.forEach(function (v,i,a) {
+                    a[i] = obj.prefixToMode(v);
+                  });
+                  return prefs;
+                }(tmp[1].split(""))),
+                nick: tmp[2],
+              };
+            };
+
           var a2b = function (a, b, c) {
             var i = a.indexOf(c);
             return b[i];
           };
-
-          this.supports.modeToPrefix =
+          obj.modeToPrefix =
             function (c) {
               return a2b(mappings.mode, 
                   mappings.prefix, c);
             };
-          this.supports.prefixToMode =
+          obj.prefixToMode =
             function (c) {
               return a2b(mappings.prefix, 
                   mappings.mode, c);

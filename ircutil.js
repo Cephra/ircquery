@@ -38,39 +38,3 @@ module.exports.parseResponse = function (line) {
 
   return response;
 };
-
-
-// parse masked irc user string
-// into an object representing a user
-module.exports.parseUser = function (userstring) {
-  var buildUser = function (nick, user, host) {
-    return {
-      nick: function () {
-        return nick;
-      },
-      user: function () {
-        return user;
-      },
-      host: function () {
-        return host;
-      },
-    };
-  };
-
-  var raw = userstring;
-  if (raw.indexOf("!") != -1) {
-    var spltNick = raw.split("!");
-    var spltHost = spltNick[1].split("@");
-    
-    return buildUser(spltNick[0],
-        spltHost[0], spltHost[1]);
-  } else {
-    return buildUser(raw);
-  }
-};
-
-//TODO think about adding this
-//module.exports.buildEvObj = function () {
-//  return {
-//  };
-//};
