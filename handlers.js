@@ -8,11 +8,9 @@ var q = function (v) {
     } else {
       var r, mr;
       if (typeof m === "string") {
-        r = (v === m) ?
-          true : false;
+        r = (v === m)
       } else if (m instanceof RegExp) {
-        r = ((mr = v.match(m)) !== null) ? 
-          true : false;
+        r = ((mr = v.match(m)) !== null);
       }
       if (cb && r &&
             typeof cb === "function") {
@@ -278,8 +276,7 @@ module.exports.response = {
         new RegExp("(?:^|[\\s#])"+
             this.nick+
             "(?:$|[\\s.!?:])", "i");
-      e.isHighlight = (e.text(reHighlight) !== -1) ?
-        true : false;
+      e.isHighlight = (e.text(reHighlight) !== -1);
 
       this.emit("chanmsg", e);
     }
@@ -298,8 +295,7 @@ module.exports.response = {
         case "CHANTYPES":
           var chanRE = new RegExp("^["+value+"]");
           obj.isChan = function (s) {
-            return (s.search(chanRE) !== -1) ?
-              true : false;
+            return (s.search(chanRE) !== -1);
           };
           break;
         case "CHANMODES":
@@ -312,8 +308,7 @@ module.exports.response = {
               modes[3]+"]$");
 
           obj.isChanMode = function (s) {
-            return (s.search(modeRE) !== -1) ?
-              true : false;
+            return (s.search(modeRE) !== -1);
           };
           break;
         case "PREFIX":
