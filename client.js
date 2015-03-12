@@ -52,40 +52,24 @@ var Client = function (userconf) {
       }
     }
   }
-  conf.altnick = conf.nick;
+  conf.altnick = conf.nick+"_";
   Object.seal(conf);
 
-  var qry = query.create.call(this);
+  that.config = conf;
+  that.qry = query.create.call(that);
+  that.util = {};
 
   // getter & setter
   Object.defineProperties(that, {
-    qry: {
-      get: function () {
-        return qry;
-      },
-    },
     nick: {
       get: function () {
         return that.config.nick;
       },
       set: function (v) {
-        this.cmd("NICK "+v);
-      },
-    },
-    host: {
-      get: function () {
-        return that.config.host;
-      },
-    },
-    config: {
-      get: function () {
-        return conf;
+        that.cmd("NICK "+v);
       },
     },
   });
-
-  // object for serverbased utils
-  this.util = {};
 
   // sendHandle for sendWorker
   var sendHandle = {
@@ -96,7 +80,7 @@ var Client = function (userconf) {
       that.socket.write(data+"\r\n");
     },
   };
-  this.cmd = function (data, dobuf) {
+  that.cmd = function (data, dobuf) {
     if (dobuf) {
       // buffering
       sendHandle.buf.push(data);
@@ -111,7 +95,7 @@ var Client = function (userconf) {
   };
 
   // handlers
-  this.on("raw", function (res) {
+  that.on("raw", function (res) {
     that.log(2,"<-- "+res.line);
     if (handlers.response[res.type]) {
       handlers.response[res.type].call(that, res);
@@ -120,11 +104,11 @@ var Client = function (userconf) {
 
   // received pong, send ping
   var ping = {};
-  this.on("disconnect", function () {
+  that.on("disconnect", function () {
     if (ping.tmout) { clearTimeout(ping.tmuot); }
     if (ping.send) { clearTimeout(ping.send); }
   });
-  this.on("pong", function(args) {
+  that.on("pong", function(args) {
     that.log(1,"received pong");
 
     // kill timeout if set
@@ -158,18 +142,27 @@ proto.log = function (lvl, arg) {
   }
 };
 
-proto.say = function (target, msg) {
-  if (msg === undefined)
+var createReply = function (method) {
+  return function (target, msg) {
+    if (msg === undefined)
+      return this;
+    msg.toString().split(/\r?\n/)
+      .filter(function (v) {
+        return v.length > 0;
+      })
+      .forEach(function (v) {
+        this.cmd(method+" "+target+" :"+v, true);
+      }, this);
     return this;
-  msg.toString().split(/\r?\n/)
-    .filter(function (v) {
-      return v.length > 0;
-    })
-    .forEach(function (v) {
-      this.cmd("PRIVMSG "+target+" :"+v, true);
-    }, this);
-  return this;
+  };
 };
+proto.say = createReply("PRIVMSG");
+proto.notice = createReply("NOTICE");
+proto.me = function (target, msg) {
+  return this.say(target, 
+      "\x01ACTION "+msg+"\x01");
+};
+
 proto.join = function (chan) {
   if (Array.isArray(chan)) {
     this.cmd("JOIN "+chan.join());
@@ -185,6 +178,7 @@ proto.part = function (chan, msg) {
 
   return this;
 };
+
 proto.connect = function () {
   var that = this;
   var config = that.config;
@@ -266,6 +260,7 @@ proto.reconnect = function () {
   that.connect();
 };
 
+// plugin loader function
 proto.plugin = function (plugin) {
   var that = this;
   var events = Object.keys(plugin.events);

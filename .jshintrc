@@ -1,6 +1,7 @@
 {
     "undef": true,
     "unused": false,
+    "sub": true,
     "globalstrict": true,
     "predef": [
         "module",

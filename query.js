@@ -1,5 +1,7 @@
 "use strict";
 
+var Q = require("./ircutil").Q;
+
 module.exports.create = function () {
   var that = this;
 
@@ -10,54 +12,99 @@ module.exports.create = function () {
 
   // CONSTRUCTORS //
   var createChan = function (chan) {
-    var obj = {
-      say: function (msg) {
-        that.say(chan, msg);
-      },
-      part: function (msg) {
-        that.part(chan, msg);
-      },
-      users: function () {
-        var list = [];
-        for (var user in userChans) {
-          var c = userChans[user][chan];
-          if (c !== undefined) {
-            list.push(user);
-          }
-        }
-        return list;
-      },
+    var obj = {};
+
+    obj.say = function (msg) {
+      that.say(chan, msg);
+      return obj;
     };
+    obj.sayTo = function (nick, msg) {
+      that.say(chan, nick+": "+msg);
+      return obj;
+    };
+    obj.notice = function (msg) {
+      that.notice(chan, msg);
+      return obj;
+    };
+    obj.me = function (msg) {
+      that.say(chan, "\x01ACTION "+msg+"\x01");
+      return obj;
+    };
+
+    obj.part = function (msg) {
+      that.part(chan, msg);
+      return obj;
+    };
+
+    obj.users = function () {
+      var list = [];
+      for (var user in userChans) {
+        var c = userChans[user][chan];
+        if (c !== undefined) {
+          list.push(user);
+        }
+      }
+      return list;
+    };
+
     return obj;
   };
   var createUser = function (nick) {
     var attributes = {};
-    var obj = {
-      say: function (msg) {
-        that.say(nick, msg);
-        return obj;
-      },
-      kick: function (chan, msg) {
-        that.cmd("KICK "+nick+" "+chan+" :"+msg);
-      },
-      chans: function () {
-        return Object.keys(userChans[nick] || {});
-      },
-      modes: function (chan) {
-        var obj = (userChans[nick] || 
-            {})[chan] ||
-        { modes: [] };
+    var obj = {};
 
-        return obj.modes;
-      },
-      attr: function (name, val) {
-        if (val !== undefined) {
-          attributes[name] = val;
-        } else {
-          return attributes[name];
-        }
-      },
+    // communication
+    obj.say = function (msg) {
+      that.say(nick, msg);
+      return obj;
     };
+    obj.notice = function (msg) {
+      that.notice(nick, msg);
+      return obj;
+    };
+    obj.me = function (msg) {
+      that.say(nick, "\x01ACTION "+msg+"\x01");
+      return obj;
+    };
+
+    // ctcp functions
+    obj.ctcpRequest = function (type, arg) {
+      that.say(nick, "\x01"+type+" "+arg+"\x01");
+      return obj;
+    };
+    obj.ctcpReply = function (type, arg) {
+      that.notice(nick, "\x01"+type+" "+arg+"\x01");
+      return obj;
+    };
+
+    obj.kick = function (chan, msg) {
+      that.cmd("KICK "+nick+" "+chan+" :"+msg);
+      return obj;
+    };
+
+    obj.chans = function () {
+      return Object.keys(userChans[nick] || {});
+    };
+
+    obj.modes = function (chan) {
+      var obj = (userChans[nick] || 
+          {})[chan] ||
+      { modes: [] };
+
+      return obj.modes;
+    };
+
+    obj.attr = function (name, val) {
+      if (name === undefined) {
+        return attributes;
+      }
+      if (val !== undefined) {
+        attributes[name] = val;
+      } else {
+        return attributes[name];
+      }
+    };
+
     return obj;
   };
 
@@ -166,19 +213,14 @@ module.exports.create = function () {
 
   // TODO caching, request parsing
   return function (str, cb) {
-    var usr, chan;
     if (that.util.isChan(str)) {
-      for (chan in chans) {
-        if (chan === str) {
-          return chans[chan];
-        }
+      if (chans[str] !== undefined) {
+        return chans[str];
       }
       return createChan(str);
     } else {
-      for (usr in users) {
-        if (usr === str) {
-          return users[usr];
-        }
+      if (users[str] !== undefined) {
+        return users[str];
       }
       return createUser(str);
     }

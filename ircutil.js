@@ -1,5 +1,28 @@
 "use strict";
 
+// q creates a 
+// special query function
+// which can be used to access 
+// a value (v) in various ways
+module.exports.Q = function (v) {
+  return function (m, cb) {
+    if (!m) {
+      return v;
+    } else {
+      var r;
+      if (typeof m === "string") {
+        r = (v === m);
+      } else if (m instanceof RegExp) {
+        r = v.match(m);
+      }
+      if (cb && r &&
+            typeof cb === "function") {
+          cb(r);
+      } else { return r; }
+    }
+  };
+};
+
 // parse irc server responses into an
 // object we can work with
 module.exports.parseResponse = function (line) {
