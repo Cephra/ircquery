@@ -162,6 +162,14 @@ proto.me = function (target, msg) {
   return this.say(target, 
       "\x01ACTION "+msg+"\x01");
 };
+proto.ctcpReq = function (target, type, msg) {
+  return this.say(target, 
+      "\x01"+type+" "+msg+"\x01");
+};
+proto.ctcpRes = function (target, type, msg) {
+  return this.notice(target, 
+      "\x01"+type+" "+msg+"\x01");
+};
 
 proto.join = function (chan) {
   if (Array.isArray(chan)) {

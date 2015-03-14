@@ -27,7 +27,7 @@ module.exports.create = function () {
       return obj;
     };
     obj.me = function (msg) {
-      that.say(chan, "\x01ACTION "+msg+"\x01");
+      that.me(chan, msg);
       return obj;
     };
 
@@ -63,17 +63,17 @@ module.exports.create = function () {
       return obj;
     };
     obj.me = function (msg) {
-      that.say(nick, "\x01ACTION "+msg+"\x01");
+      that.me(nick, msg);
       return obj;
     };
 
     // ctcp functions
-    obj.ctcpRequest = function (type, arg) {
-      that.say(nick, "\x01"+type+" "+arg+"\x01");
+    obj.ctcpReq = function (type, arg) {
+      that.ctcpReq(nick, type, arg);
       return obj;
     };
-    obj.ctcpReply = function (type, arg) {
-      that.notice(nick, "\x01"+type+" "+arg+"\x01");
+    obj.ctcpRes = function (type, arg) {
+      that.ctcpRes(nick, type, arg);
       return obj;
     };
 

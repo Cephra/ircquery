@@ -270,8 +270,8 @@ handlers["PRIVMSG"] = function (res) {
         (ctcp = e.text(/^\x01(\w+)(.*)\x01$/))) {
       e.type = Q(ctcp[1]);
       e.args = Q(ctcp[2]);
-      e.reply = function (arg) {
-        user.ctcpReply(e.type(),arg);
+      e.res = function (arg) {
+        user.ctcpRes(e.type(),arg);
       };
 
       that.emit("ctcp", e);
