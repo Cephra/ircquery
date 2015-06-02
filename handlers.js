@@ -297,7 +297,7 @@ handlers["PRIVMSG"] = function (res) {
       new RegExp("(?:^|[\\s#])"+
           this.nick+
           "(?:$|[\\s.!?:])", "i");
-    e.isHighlight = (e.text(reHighlight) !== -1);
+    e.isHighlight = (e.text(reHighlight) !== null);
 
     // emit the event
     this.emit("chanmsg", e);

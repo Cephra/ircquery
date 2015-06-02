@@ -53,9 +53,9 @@ var Client = function (userconf) {
     }
   }
   conf.altnick = conf.nick+"_";
-  Object.seal(conf);
-
+  //that.config = Object.freeze(conf);
   that.config = conf;
+
   that.qry = query.create.call(that);
   that.util = {};
 
@@ -119,7 +119,7 @@ var Client = function (userconf) {
     ping.send = setTimeout(function () {
       that.log(1,"sent ping");
 
-      that.cmd("PING :"+that.host);
+      that.cmd("PING :"+that.config.host);
 
       ping.tmout = setTimeout(function () {
         that.log(1,"ping timeout");
