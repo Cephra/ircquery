@@ -142,7 +142,7 @@ proto.log = function (lvl, arg) {
   }
 };
 
-var createReply = function (method) {
+var createReplyFunction = function (method) {
   return function (target, msg) {
     if (msg === undefined)
       return this;
@@ -156,8 +156,8 @@ var createReply = function (method) {
     return this;
   };
 };
-proto.say = createReply("PRIVMSG");
-proto.notice = createReply("NOTICE");
+proto.say = createReplyFunction("PRIVMSG");
+proto.notice = createReplyFunction("NOTICE");
 proto.me = function (target, msg) {
   return this.say(target, 
       "\x01ACTION "+msg+"\x01");
@@ -286,3 +286,4 @@ proto.plugin = function (plugin) {
 };
 
 module.exports = Client;
+
